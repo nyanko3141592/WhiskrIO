@@ -57,29 +57,33 @@ struct SettingsView: View {
     
     private var generalSettings: some View {
         Form {
-            Section("文字起こしオプション") {
+            Section {
                 Toggle("フィラーワードを除去", isOn: $settingsManager.settings.removeFillerWords)
-                
                 Toggle("自動で句読点を追加", isOn: $settingsManager.settings.addPunctuation)
-                
                 Picker("文体スタイル", selection: $settingsManager.settings.style) {
                     ForEach(TranscriptionStyle.allCases, id: \.self) { style in
                         Text(style.displayName).tag(style)
                     }
                 }
-                
                 Picker("言語", selection: $settingsManager.settings.language) {
                     Text("日本語").tag("ja")
                     Text("英語").tag("en")
                     Text("自動検出").tag("auto")
                 }
+            } header: {
+                Text("文字起こしオプション")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
             
-            Section("インターフェース") {
+            Section {
                 Toggle("録音インジケーターを表示", isOn: $settingsManager.settings.showOverlay)
                     .help("画面下部に小さく録音中のインジケーターを表示します")
-                
                 Toggle("効果音を再生", isOn: $settingsManager.settings.playSoundEffects)
+            } header: {
+                Text("インターフェース")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
         }
         .formStyle(.grouped)
@@ -94,7 +98,7 @@ struct SettingsView: View {
     
     private var apiSettings: some View {
         Form {
-            Section("Gemini API") {
+            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("APIキー")
                         .font(.headline)
@@ -160,9 +164,13 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.top, 8)
+            } header: {
+                Text("Gemini API")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
             
-            Section("モデル設定") {
+            Section {
                 Picker("モデル", selection: $settingsManager.settings.selectedModel) {
                     ForEach(GeminiModel.allCases.filter { $0.isRecommended }, id: \.self) { model in
                         Text(model.displayName).tag(model)
@@ -192,6 +200,10 @@ struct SettingsView: View {
                     }
                 }
                 .padding(.top, 4)
+            } header: {
+                Text("モデル設定")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
         }
         .formStyle(.grouped)

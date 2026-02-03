@@ -119,7 +119,16 @@ struct TokenUsage: Codable, Identifiable {
 
 // MARK: - App Settings
 struct AppSettings: Codable, Equatable {
-    var apiKey: String
+    var apiKey: String {
+        get { KeychainManager.shared.getAPIKey() ?? "" }
+        set { 
+            if newValue.isEmpty {
+                _ = KeychainManager.shared.deleteAPIKey()
+            } else {
+                _ = KeychainManager.shared.saveAPIKey(newValue)
+            }
+        }
+    }
     var hotkeyModifier: Int
     var hotkeyKeyCode: Int
     var removeFillerWords: Bool
@@ -137,7 +146,6 @@ struct AppSettings: Codable, Equatable {
     var commandModeTriggers: [String]  // コマンドモードのトリガーワード
     
     static let `default` = AppSettings(
-        apiKey: "",
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
         hotkeyKeyCode: 3, // F3
         removeFillerWords: true,
