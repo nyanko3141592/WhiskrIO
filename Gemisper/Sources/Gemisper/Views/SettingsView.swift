@@ -345,7 +345,7 @@ struct SettingsView: View {
     
     private var promptSettings: some View {
         Form {
-            Section("文字起こしプロンプト") {
+            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("カスタムプロンプト")
                         .font(.headline)
@@ -394,9 +394,13 @@ struct SettingsView: View {
                         .cornerRadius(4)
                 }
                 .padding(.top, 8)
+            } header: {
+                Text("文字起こしプロンプト")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
             
-            Section("コマンドモード") {
+            Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("トリガーワード")
                         .font(.headline)
@@ -461,6 +465,10 @@ struct SettingsView: View {
                         .cornerRadius(4)
                 }
                 .padding(.top, 8)
+            } header: {
+                Text("コマンドモード")
+                    .font(.headline)
+                    .foregroundColor(.primary)
             }
         }
         .formStyle(.grouped)
