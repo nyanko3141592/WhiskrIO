@@ -1,0 +1,133 @@
+# Gemisper Rules Configuration
+# ~/.config/gemisper/rules.yaml にコピーして使用してください
+
+version: "1.0"
+
+# トリガールール定義
+triggers:
+  # zshコマンド生成
+  - name: "zshコマンド"
+    keywords: ["コマンド", "command", "cmd", "zsh"]
+    action: "generate_command"
+    parameters:
+      shell: "zsh"
+      explain: "false"
+  
+  # bashコマンド生成
+  - name: "bashコマンド"
+    keywords: ["bash", "sh"]
+    action: "generate_command"
+    parameters:
+      shell: "bash"
+      explain: "false"
+  
+  # 英語翻訳
+  - name: "英語翻訳"
+    keywords: ["英語", "english", "en"]
+    action: "translate"
+    parameters:
+      target_lang: "en"
+      source_lang: "auto"
+  
+  # 日本語翻訳
+  - name: "日本語訳"
+    keywords: ["日本語", "japanese", "ja", "和訳"]
+    action: "translate"
+    parameters:
+      target_lang: "ja"
+      source_lang: "auto"
+  
+  # Markdown整形
+  - name: "Markdown整形"
+    keywords: ["markdown", "md", "マークダウン"]
+    action: "format"
+    parameters:
+      format: "markdown"
+      add_toc: "true"
+  
+  # JSON整形
+  - name: "JSON整形"
+    keywords: ["json", "JSON"]
+    action: "format"
+    parameters:
+      format: "json"
+      pretty: "true"
+  
+  # コード生成
+  - name: "コード生成"
+    keywords: ["コード", "code", "プログラム"]
+    action: "generate_code"
+    parameters:
+      language: "auto"
+      add_comments: "true"
+
+# デフォルト設定
+defaults:
+  prompt: |
+    Transcribe the following audio to text.
+    Remove filler words like "um", "uh", "like", "you know".
+    Add appropriate punctuation.
+    Format as clean, readable text.
+  
+  language: "auto"
+  style: "natural"
+  remove_filler_words: true
+  add_punctuation: true
+
+# 出力テンプレート
+templates:
+  # コマンド用テンプレート
+  command: |
+    {command}
+  
+  # 説明付きコマンド
+  command_with_explain: |
+    # {description}
+    {command}
+    
+    # 説明
+    {explanation}
+  
+  # 翻訳用テンプレート
+  translate: |
+    {translated}
+  
+  # 原文+訳テンプレート
+  translate_with_original: |
+    【原文】
+    {original}
+    
+    【{target_lang}訳】
+    {translated}
+  
+  # Markdown整形テンプレート
+  markdown_format: |
+    {content}
+  
+  # JSON整形テンプレート
+  json_format: |
+    {content}
+  
+  # コード生成テンプレート
+  code_generate: |
+    ```{language}
+    {code}
+    ```
+    
+    {explanation}
+
+# カスタムプロンプト（特定のトリガー用）
+custom_prompts:
+  formal: |
+    Transcribe the audio to formal business text.
+    Use professional language.
+    Remove all filler words.
+  
+  casual: |
+    Transcribe the audio to casual text.
+    Keep it friendly and conversational.
+  
+  technical: |
+    Transcribe the audio to technical documentation.
+    Use precise terminology.
+    Format with proper technical style.
