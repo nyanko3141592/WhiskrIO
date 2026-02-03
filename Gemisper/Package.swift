@@ -10,12 +10,15 @@ let package = Package(
             targets: ["Gemisper"]
         )
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/jpsim/YAMS.git", from: "5.0.0"),
+    ],
     targets: [
         .executableTarget(
             name: "Gemisper",
-            dependencies: [],
-
+            dependencies: [
+                .product(name: "Yams", package: "yams"),
+            ],
             swiftSettings: [
                 .enableExperimentalFeature("StrictConcurrency"),
             ],

@@ -166,6 +166,7 @@ class SettingsManager: ObservableObject {
     @Published var tokenUsages: [TokenUsage] = []
     @Published var rulesContent: String = ""
     @Published var rulesFilePath: String? = nil
+    @Published var rulesYAMLContent: String = ""  // YAML形式のルール
     
     private let settingsKey = "com.gemisper.settings"
     private let dictionaryKey = "com.gemisper.dictionary"
@@ -200,6 +201,9 @@ class SettingsManager: ObservableObject {
         
         // ルールファイルの読み込み
         loadRulesFile()
+        
+        // YAMLルールの読み込み
+        loadYAMLRules()
     }
     
     func saveSettings() {
@@ -382,6 +386,63 @@ class SettingsManager: ObservableObject {
             return ""
         }
         return rulesContent.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
+    // MARK: - YAML Rules
+    
+    func loadYAMLRules() {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        
+        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.yaml")
+        
+        if fileManager.fileExists(atPath: configPath.path) {
+            do {
+                rulesYAMLContent = try String(contentsOf: configPath, encoding: .utf8)
+            } catch {
+                rulesYAMLContent = RuleConfig.defaultYAML
+                print("[ERROR] Failed to read YAML rules file: \(error)")
+            }
+        } else {
+            // ファイルが存在しない場合はデフォルトを設定
+            rulesYAMLContent = RuleConfig.defaultYAML
+        }
+    }
+    
+    func saveYAMLRules(_ content: String) throws {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        let configDir = homeDirectory.appendingPathComponent(".config/gemisper")
+        let configPath = configDir.appendingPathComponent("rules.yaml")
+        
+        // ディレクトリが存在しない場合は作成
+        if !fileManager.fileExists(atPath: configDir.path) {
+            try fileManager.createDirectory(at: configDir, withIntermediateDirectories: true, attributes: nil)
+        }
+        
+        try content.write(to: configPath, atomically: true, encoding: .utf8)
+        rulesYAMLContent = content
+        
+        // RuleEngineの設定も更新
+        RuleEngine.shared.loadConfig()
+    }
+    
+    func resetYAMLRulesToDefault() throws {
+        try saveYAMLRules(RuleConfig.defaultYAML)
+    }
+    
+    func validateYAMLRules(_ content: String) -> (isValid: Bool, error: String?) {
+        do {
+            _ = try RuleConfig.fromYAML(content)
+            return (true, nil)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+    
+    func getYAMLRulesFilePath() -> String {
+        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
+        return homeDirectory.appendingPathComponent(".config/gemisper/rules.yaml").path
     }
 }
 

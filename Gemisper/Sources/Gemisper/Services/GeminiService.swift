@@ -35,15 +35,21 @@ class GeminiService {
     // MARK: - Command Mode Detection
     
     func detectCommandMode(transcribedText: String) -> (isCommand: Bool, cleanedText: String) {
+        // まずルールエンジンでチェック
+        let ruleResult = RuleEngine.shared.process(text: transcribedText)
+        
+        if ruleResult.action == .generateCommand {
+            return (true, ruleResult.cleanedText)
+        }
+        
+        // フォールバック：従来のトリガーをチェック
         let triggers = SettingsManager.shared.settings.commandModeTriggers
-        let lowercasedText = transcribedText.lowercased()
+        let trimmedText = transcribedText.trimmingCharacters(in: .whitespaces)
         
         for trigger in triggers {
             let lowercasedTrigger = trigger.lowercased()
-            // 先頭にトリガーがあるかチェック（前後の空白を無視）
-            let trimmedText = transcribedText.trimmingCharacters(in: .whitespaces)
-            if trimmedText.lowercased().hasPrefix(lowercasedTrigger) {
-                // トリガー部分を除去
+            let lowercasedText = trimmedText.lowercased()
+            if lowercasedText.hasPrefix(lowercasedTrigger) {
                 let cleaned = String(trimmedText.dropFirst(trigger.count)).trimmingCharacters(in: .whitespaces)
                 return (true, cleaned)
             }
@@ -131,23 +137,35 @@ class GeminiService {
             throw GeminiError.encodingError
         }
         
-        // ファイルサイズが20MBを超える場合はFiles APIを使用
+        // まず音声を文字起こし（ルール適用前に元のテキストを取得）
+        let transcribedText = try await performBasicTranscription(audioData: audioData)
+        
+        // ルールエンジンで処理
+        let ruleResult = RuleEngine.shared.process(text: transcribedText)
+        
+        // ルールにマッチした場合は専用プロンプトを使用
+        if ruleResult.isDefault {
+            // デフォルト処理：既に文字起こし結果を返す
+            return transcribedText
+        }
+        
+        // ルールに基づくプロンプト生成
+        let prompt = RuleEngine.shared.generatePrompt(
+            for: ruleResult.action,
+            text: ruleResult.cleanedText,
+            parameters: ruleResult.parameters
+        )
+        
+        // ルールに基づいて追加処理
+        return try await processWithRule(text: transcribedText, ruleResult: ruleResult, prompt: prompt)
+    }
+    
+    /// 基本の文字起こしを実行
+    private func performBasicTranscription(audioData: Data) async throws -> String {
+        let settings = SettingsManager.shared.settings
         let audioBase64 = audioData.base64EncodedString()
         
-        // カスタムプロンプトが設定されていれば使用、なければデフォルト
-        var prompt: String
-        if let customPrompt = settings.customPrompt, !customPrompt.isEmpty {
-            prompt = customPrompt
-        } else {
-            // デフォルトプロンプト（英語）
-            prompt = "Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text."
-            
-            if settings.language == "ja" {
-                prompt += " Respond in Japanese."
-            } else if settings.language != "auto" {
-                prompt += " Respond in \(settings.language)."
-            }
-        }
+        var prompt = buildDefaultPrompt(settings: settings)
         
         // スタイル設定（カスタムプロンプトがない場合のみ）
         if settings.customPrompt == nil || settings.customPrompt!.isEmpty {
@@ -253,7 +271,68 @@ class GeminiService {
             result = SettingsManager.shared.expandSnippets(in: result)
             
             return result
+        } catch let error as GeminiError {
+            throw error
+        } catch {
+            throw GeminiError.networkError(error)
+        }
+    }
+    
+    /// デフォルトプロンプトを構築
+    private func buildDefaultPrompt(settings: AppSettings) -> String {
+        var prompt = "Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text."
+        
+        if settings.language == "ja" {
+            prompt += " Respond in Japanese."
+        } else if settings.language != "auto" {
+            prompt += " Respond in \(settings.language)."
+        }
+        
+        return prompt
+    }
+    
+    /// ルールに基づいて処理
+    private func processWithRule(text: String, ruleResult: RuleProcessingResult, prompt: String) async throws -> String {
+        do {
+            // コマンド生成など、追加処理が必要な場合
+            if ruleResult.action == .generateCommand {
+                let command = try await generateContent(prompt: prompt)
+                
+                // テンプレート適用
+                if let template = ruleResult.template {
+                    let values: [String: String] = [
+                        "description": ruleResult.cleanedText,
+                        "command": command
+                    ]
+                    return RuleEngine.shared.applyTemplate(template, values: values)
+                }
+                
+                return command
+            }
             
+            // 翻訳や整形の場合も同様
+            if ruleResult.action == .translate || ruleResult.action == .format {
+                let processedText = try await generateContent(prompt: prompt)
+                
+                // テンプレート適用
+                if let template = ruleResult.template {
+                    var values: [String: String] = [:]
+                    switch ruleResult.action {
+                    case .translate:
+                        values["original"] = ruleResult.cleanedText
+                        values["translated"] = processedText
+                    case .format:
+                        values["content"] = processedText
+                    default:
+                        values["content"] = processedText
+                    }
+                    return RuleEngine.shared.applyTemplate(template, values: values)
+                }
+                
+                return processedText
+            }
+            
+            return text
         } catch let error as GeminiError {
             throw error
         } catch {

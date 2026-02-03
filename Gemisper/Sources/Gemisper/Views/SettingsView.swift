@@ -42,6 +42,12 @@ struct SettingsView: View {
                 .tabItem {
                     Label("詳細", systemImage: "slider.horizontal.3")
                 }
+            
+            // ルール設定
+            rulesSettings
+                .tabItem {
+                    Label("ルール", systemImage: "doc.text")
+                }
         }
         .frame(width: 550, height: 500)
         .padding()
@@ -450,6 +456,11 @@ struct SettingsView: View {
     
     @State private var newTriggerInput: String = ""
     
+    // MARK: - Rules Settings States
+    @State private var rulesValidationError: String? = nil
+    @State private var isRulesValid: Bool = true
+    @State private var showRulesResetConfirmation: Bool = false
+    
     // MARK: - Advanced Settings
     
     private var advancedSettings: some View {
@@ -512,7 +523,268 @@ struct SettingsView: View {
             }
         }
     }
+    
+    // MARK: - Rules Settings
+    
+    private var rulesSettings: some View {
+        Form {
+            Section {
+                Toggle("ルールシステムを有効化", isOn: $settingsManager.settings.rulesEnabled)
+                    .onChange(of: settingsManager.settings.rulesEnabled) { _ in
+                        settingsManager.saveSettings()
+                    }
+                
+                Text("音声入力の先頭にキーワードを検出し、自動で処理を切り替えます")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Section("ルール設定ファイル") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("~/.config/gemisper/rules.yaml")
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                        
+                        Spacer()
+                        
+                        Button("フォルダを開く") {
+                            openRulesDirectory()
+                        }
+                        .buttonStyle(.borderless)
+                        .controlSize(.small)
+                    }
+                    
+                    // YAMLエディタ
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $settingsManager.rulesYAMLContent)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 200, maxHeight: .infinity)
+                            .border(validationBorderColor, width: 1)
+                            .onChange(of: settingsManager.rulesYAMLContent) { newValue in
+                                validateRulesContent(newValue)
+                            }
+                        
+                        if settingsManager.rulesYAMLContent.isEmpty {
+                            Text("YAML形式でルールを定義...")
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 8)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    
+                    // 検証結果
+                    if let error = rulesValidationError {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text(error)
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.vertical, 4)
+                    } else if !settingsManager.rulesYAMLContent.isEmpty {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("有効なYAMLです")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
+                    HStack {
+                        Button("デフォルトに戻す") {
+                            showRulesResetConfirmation = true
+                        }
+                        .alert("ルールをリセット", isPresented: $showRulesResetConfirmation) {
+                            Button("キャンセル", role: .cancel) {}
+                            Button("リセット", role: .destructive) {
+                                resetRulesToDefault()
+                            }
+                        } message: {
+                            Text("ルール設定をデフォルトに戻しますか？現在の設定は失われます。")
+                        }
+                        
+                        Spacer()
+                        
+                        Button("保存") {
+                            saveRules()
+                        }
+                        .disabled(!isRulesValid)
+                        .keyboardShortcut("s", modifiers: .command)
+                    }
+                }
+            }
+            
+            Section("トリガールール一覧") {
+                let config = parseCurrentConfig()
+                if config.triggers.isEmpty {
+                    Text("定義されたトリガーがありません")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .italic()
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(config.triggers) { rule in
+                            RulePreviewRow(rule: rule)
+                        }
+                    }
+                }
+            }
+            
+            Section("使用例") {
+                VStack(alignment: .leading, spacing: 8) {
+                    ExampleRow(
+                        trigger: "コマンド",
+                        input: "ホームディレクトリのファイル一覧を表示",
+                        output: "ls ~"
+                    )
+                    ExampleRow(
+                        trigger: "英語",
+                        input: "Hello, how are you today?",
+                        output: "こんにちは、今日はお元気ですか？"
+                    )
+                    ExampleRow(
+                        trigger: "markdown",
+                        input: "タイトルと箇条書きを含むテキスト",
+                        output: "整形されたMarkdown形式"
+                    )
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+    
+    private var validationBorderColor: Color {
+        if let _ = rulesValidationError {
+            return .orange
+        }
+        return Color.gray.opacity(0.3)
+    }
+    
+    private func validateRulesContent(_ content: String) {
+        let result = settingsManager.validateYAMLRules(content)
+        isRulesValid = result.isValid
+        rulesValidationError = result.error
+    }
+    
+    private func saveRules() {
+        do {
+            try settingsManager.saveYAMLRules(settingsManager.rulesYAMLContent)
+            // 成功通知
+            rulesValidationError = nil
+        } catch {
+            rulesValidationError = "保存に失敗しました: \(error.localizedDescription)"
+        }
+    }
+    
+    private func resetRulesToDefault() {
+        do {
+            try settingsManager.resetYAMLRulesToDefault()
+            rulesValidationError = nil
+        } catch {
+            rulesValidationError = "リセットに失敗しました: \(error.localizedDescription)"
+        }
+    }
+    
+    private func openRulesDirectory() {
+        let path = settingsManager.getYAMLRulesFilePath()
+        let directory = (path as NSString).deletingLastPathComponent
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: directory)])
+    }
+    
+    private func parseCurrentConfig() -> RuleConfig {
+        do {
+            return try RuleConfig.fromYAML(settingsManager.rulesYAMLContent)
+        } catch {
+            return RuleConfig.default
+        }
+    }
 }
+
+// MARK: - Rule Preview Row
+
+struct RulePreviewRow: View {
+    let rule: TriggerRule
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // アイコン
+            Image(systemName: rule.action.icon)
+                .foregroundColor(.accentColor)
+                .frame(width: 24)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(rule.name)
+                    .font(.system(.body, weight: .medium))
+                
+                // キーワード
+                HStack(spacing: 4) {
+                    ForEach(rule.keywords, id: \.self) { keyword in
+                        Text(keyword)
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(4)
+                    }
+                }
+                
+                // アクション
+                Text(rule.action.displayName)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Example Row
+
+struct ExampleRow: View {
+    let trigger: String
+    let input: String
+    let output: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(trigger)
+                    .font(.caption)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.green.opacity(0.2))
+                    .foregroundColor(.green)
+                    .cornerRadius(4)
+                
+                Text(input)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            HStack {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(output)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                    .italic()
+            }
+            .padding(.leading, 8)
+        }
+        .padding(.vertical, 2)
+    }
+}
+
 
 // MARK: - Hotkey Recorder View
 
