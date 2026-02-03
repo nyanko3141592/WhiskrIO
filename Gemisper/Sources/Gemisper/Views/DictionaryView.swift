@@ -19,16 +19,30 @@ class DictionaryWindowController {
                 backing: .buffered,
                 defer: false
             )
-            panel.title = "カスタム辞書"
+            panel.title = L10n.Dictionary.title
             panel.contentView = NSHostingView(rootView: contentView)
             panel.isReleasedWhenClosed = false
             panel.center()
             
             window = panel
+            
+            // Listen for language changes
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(languageChanged),
+                name: .languageChanged,
+                object: nil
+            )
         }
         
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    @objc private func languageChanged() {
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.title = L10n.Dictionary.title
+        }
     }
 }
 
@@ -52,11 +66,11 @@ struct DictionaryView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // 検索バー
+            // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField("検索...", text: $searchText)
+                TextField(L10n.Common.search + "...", text: $searchText)
                     .textFieldStyle(.plain)
             }
             .padding(8)
@@ -64,7 +78,7 @@ struct DictionaryView: View {
             .cornerRadius(8)
             .padding()
             
-            // リスト
+            // List
             List {
                 Section {
                     ForEach(filteredEntries) { entry in
@@ -76,13 +90,13 @@ struct DictionaryView: View {
                     }
                 } header: {
                     HStack {
-                        Text("変換前")
+                        Text(L10n.Dictionary.from)
                             .frame(width: 200, alignment: .leading)
                         Spacer()
                         Text("→")
                             .frame(width: 30)
                         Spacer()
-                        Text("変換後")
+                        Text(L10n.Dictionary.to)
                             .frame(width: 200, alignment: .leading)
                         Spacer()
                         Text("")
@@ -95,17 +109,17 @@ struct DictionaryView: View {
             
             Divider()
             
-            // 追加フォーム
+            // Add form
             VStack(spacing: 12) {
-                Text("新しい辞書エントリ")
+                Text(L10n.Dictionary.addEntry)
                     .font(.headline)
                 
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("変換前")
+                        Text(L10n.Dictionary.from)
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        TextField("例: つまり", text: $newFrom)
+                        TextField(L10n.Dictionary.from + "...", text: $newFrom)
                             .textFieldStyle(.roundedBorder)
                     }
                     
@@ -113,10 +127,10 @@ struct DictionaryView: View {
                         .foregroundColor(.secondary)
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("変換後")
+                        Text(L10n.Dictionary.to)
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        TextField("例: つまり、", text: $newTo)
+                        TextField(L10n.Dictionary.to + "...", text: $newTo)
                             .textFieldStyle(.roundedBorder)
                     }
                     
@@ -194,16 +208,30 @@ class SnippetsWindowController {
                 backing: .buffered,
                 defer: false
             )
-            panel.title = "スニペット"
+            panel.title = L10n.Snippets.title
             panel.contentView = NSHostingView(rootView: contentView)
             panel.isReleasedWhenClosed = false
             panel.center()
             
             window = panel
+            
+            // Listen for language changes
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(languageChanged),
+                name: .languageChanged,
+                object: nil
+            )
         }
         
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+    
+    @objc private func languageChanged() {
+        DispatchQueue.main.async { [weak self] in
+            self?.window?.title = L10n.Snippets.title
+        }
     }
 }
 
@@ -227,11 +255,11 @@ struct SnippetsView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // 検索バー
+            // Search bar
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
-                TextField("検索...", text: $searchText)
+                TextField(L10n.Common.settings + "...", text: $searchText)
                     .textFieldStyle(.plain)
             }
             .padding(8)
@@ -239,7 +267,7 @@ struct SnippetsView: View {
             .cornerRadius(8)
             .padding()
             
-            // リスト
+            // List
             List {
                 Section {
                     ForEach(filteredSnippets) { snippet in
@@ -251,10 +279,10 @@ struct SnippetsView: View {
                     }
                 } header: {
                     HStack {
-                        Text("トリガー")
+                        Text(L10n.Snippets.trigger)
                             .frame(width: 150, alignment: .leading)
                         Spacer()
-                        Text("展開後")
+                        Text(L10n.Snippets.expansion)
                             .frame(width: 300, alignment: .leading)
                         Spacer()
                         Text("")
@@ -267,29 +295,29 @@ struct SnippetsView: View {
             
             Divider()
             
-            // 追加フォーム
+            // Add form
             VStack(spacing: 12) {
-                Text("新しいスニペット")
+                Text(L10n.Snippets.addSnippet)
                     .font(.headline)
                 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("トリガー:")
+                        Text(L10n.Snippets.trigger + ":")
                             .frame(width: 70, alignment: .trailing)
-                        TextField("例: @mail", text: $newTrigger)
+                        TextField(L10n.Snippets.trigger + "...", text: $newTrigger)
                             .textFieldStyle(.roundedBorder)
                     }
                     
                     HStack {
-                        Text("展開:")
+                        Text(L10n.Snippets.expansion + ":")
                             .frame(width: 70, alignment: .trailing)
-                        TextField("例: your.email@example.com", text: $newExpansion)
+                        TextField(L10n.Snippets.expansion + "...", text: $newExpansion)
                             .textFieldStyle(.roundedBorder)
                     }
                     
                     HStack {
                         Spacer()
-                        Button("追加") {
+                        Button(L10n.Common.add) {
                             addSnippet()
                         }
                         .disabled(newTrigger.isEmpty || newExpansion.isEmpty)

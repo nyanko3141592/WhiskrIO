@@ -131,6 +131,9 @@ struct AppSettings: Codable, Equatable {
     var pushToTalkMode: Bool
     var pushToTalkKeys: [PushToTalkKey]
     var selectedModel: GeminiModel
+    var customPrompt: String?
+    var appLanguage: AppLanguage
+    var rulesEnabled: Bool
     
     static let `default` = AppSettings(
         apiKey: "",
@@ -144,7 +147,10 @@ struct AppSettings: Codable, Equatable {
         playSoundEffects: true,
         pushToTalkMode: true,
         pushToTalkKeys: [.option, .command], // デフォルト: ⌥ + ⌘
-        selectedModel: .flashLite // デフォルト: gemini-2.5-flash-lite
+        selectedModel: .flashLite, // デフォルト: gemini-2.5-flash-lite
+        customPrompt: nil,
+        appLanguage: .english,
+        rulesEnabled: false
     )
 }
 
@@ -156,6 +162,8 @@ class SettingsManager: ObservableObject {
     @Published var customDictionary: [CustomDictionaryEntry] = []
     @Published var snippets: [Snippet] = []
     @Published var tokenUsages: [TokenUsage] = []
+    @Published var rulesContent: String = ""
+    @Published var rulesFilePath: String? = nil
     
     private let settingsKey = "com.gemisper.settings"
     private let dictionaryKey = "com.gemisper.dictionary"
@@ -183,7 +191,13 @@ class SettingsManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: tokenUsageKey),
            let savedUsages = try? JSONDecoder().decode([TokenUsage].self, from: data) {
             tokenUsages = savedUsages
+            print("[DEBUG] Settings.loadSettings(): Loaded \(tokenUsages.count) token usages")
+        } else {
+            print("[DEBUG] Settings.loadSettings(): No saved token usages found")
         }
+        
+        // ルールファイルの読み込み
+        loadRulesFile()
     }
     
     func saveSettings() {
@@ -207,6 +221,7 @@ class SettingsManager: ObservableObject {
     func saveTokenUsages() {
         if let data = try? JSONEncoder().encode(tokenUsages) {
             UserDefaults.standard.set(data, forKey: tokenUsageKey)
+            print("[DEBUG] Settings.saveTokenUsages(): Saved \(tokenUsages.count) token usages")
         }
     }
     
@@ -252,12 +267,14 @@ class SettingsManager: ObservableObject {
     
     // MARK: - Token Usage
     func addTokenUsage(inputTokens: Int, outputTokens: Int, modelName: String) {
+        print("[DEBUG] Settings.addTokenUsage(): input=\(inputTokens), output=\(outputTokens), model=\(modelName)")
         let usage = TokenUsage(
             inputTokens: inputTokens,
             outputTokens: outputTokens,
             modelName: modelName
         )
         tokenUsages.append(usage)
+        print("[DEBUG] Settings.addTokenUsage(): Total usages now: \(tokenUsages.count)")
         
         // 90日以上前のデータを削除
         cleanupOldUsages()
@@ -265,7 +282,9 @@ class SettingsManager: ObservableObject {
     }
     
     func getRecentUsage(limit: Int = 10) -> [TokenUsage] {
-        return Array(tokenUsages.suffix(limit).reversed())
+        let result = Array(tokenUsages.suffix(limit).reversed())
+        print("[DEBUG] Settings.getRecentUsage(): total=\(tokenUsages.count), returning=\(result.count)")
+        return result
     }
     
     func getTodayUsage() -> (tokens: Int, costUSD: Double, costJPY: Int) {
@@ -304,6 +323,63 @@ class SettingsManager: ObservableObject {
         let calendar = Calendar.current
         let cutoffDate = calendar.date(byAdding: .day, value: -90, to: Date()) ?? Date()
         tokenUsages.removeAll { $0.timestamp < cutoffDate }
+    }
+    
+    // MARK: - Rules File
+    
+    func loadRulesFile() {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        
+        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.md")
+        let legacyPath = homeDirectory.appendingPathComponent(".gemisper-rules.md")
+        
+        if fileManager.fileExists(atPath: configPath.path) {
+            rulesFilePath = configPath.path
+            do {
+                rulesContent = try String(contentsOf: configPath, encoding: .utf8)
+            } catch {
+                rulesContent = ""
+                print("[ERROR] Failed to read rules file: \(error)")
+            }
+        } else if fileManager.fileExists(atPath: legacyPath.path) {
+            rulesFilePath = legacyPath.path
+            do {
+                rulesContent = try String(contentsOf: legacyPath, encoding: .utf8)
+            } catch {
+                rulesContent = ""
+                print("[ERROR] Failed to read rules file: \(error)")
+            }
+        } else {
+            rulesContent = ""
+            rulesFilePath = nil
+        }
+    }
+    
+    func getRulesFilePath() -> String? {
+        let fileManager = FileManager.default
+        let homeDirectory = fileManager.homeDirectoryForCurrentUser
+        
+        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.md")
+        let legacyPath = homeDirectory.appendingPathComponent(".gemisper-rules.md")
+        
+        if fileManager.fileExists(atPath: configPath.path) {
+            return configPath.path
+        } else if fileManager.fileExists(atPath: legacyPath.path) {
+            return legacyPath.path
+        }
+        return nil
+    }
+    
+    func rulesFileExists() -> Bool {
+        return getRulesFilePath() != nil
+    }
+    
+    func getFormattedRules() -> String {
+        guard settings.rulesEnabled, !rulesContent.isEmpty else {
+            return ""
+        }
+        return rulesContent.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

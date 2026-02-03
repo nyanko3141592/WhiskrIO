@@ -37,7 +37,7 @@ struct SettingsView: View {
                     Label("詳細", systemImage: "slider.horizontal.3")
                 }
         }
-        .frame(width: 500, height: 450)
+        .frame(width: 550, height: 500)
         .padding()
     }
     

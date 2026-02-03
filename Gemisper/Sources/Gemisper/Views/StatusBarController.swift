@@ -105,6 +105,7 @@ class StatusBarController {
     }
     
     private func setupUsageMenu() {
+        print("[DEBUG] StatusBarController.setupUsageMenu() called")
         // ヘッダー
         let usageHeaderItem = NSMenuItem(
             title: "使用量",
@@ -116,6 +117,7 @@ class StatusBarController {
         
         // 直近のリクエスト
         let recentUsages = SettingsManager.shared.getRecentUsage(limit: 1)
+        print("[DEBUG] StatusBarController: recentUsages.count = \(recentUsages.count)")
         if let recent = recentUsages.first {
             let recentItem = NSMenuItem(
                 title: "  直近: \(recent.totalTokens.formatted()) tokens",
@@ -216,6 +218,7 @@ class StatusBarController {
     }
     
     @objc private func toggleMenu(_ sender: NSStatusBarButton) {
+        print("[DEBUG] StatusBarController.toggleMenu() called")
         guard let event = NSApp.currentEvent else { return }
         
         // Show menu on both left and right click
@@ -227,6 +230,7 @@ class StatusBarController {
     }
     
     private func updateUsageMenu() {
+        print("[DEBUG] StatusBarController.updateUsageMenu() called")
         // メニューアイテムを再構築して最新データを反映
         menu.removeAllItems()
         setupMenu()

@@ -45,8 +45,8 @@ class OverlayWindow: NSWindow {
         container.addSubview(dot)
         
         // Status text
-        let label = NSTextField(frame: NSRect(x: 30, y: 10, width: 60, height: 20))
-        label.stringValue = "REC"
+        let label = NSTextField(frame: NSRect(x: 30, y: 10, width: 80, height: 20))
+        label.stringValue = L10n.Overlay.listening
         label.textColor = .white
         label.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .bold)
         label.isEditable = false
@@ -96,8 +96,12 @@ class OverlayWindow: NSWindow {
     }
     
     func showProcessing() {
-        statusLabel?.stringValue = "..."
+        statusLabel?.stringValue = L10n.Overlay.processing
         waveformView?.isProcessing = true
+    }
+    
+    func updateStatus(_ text: String) {
+        statusLabel?.stringValue = text
     }
     
     private func updateWaveform() {

@@ -1,12 +1,12 @@
 import SwiftUI
 
 // MARK: - App Entry Point
-// LSUIElementアプリではWindowGroupを使わず、AppDelegateで全てを管理する
-// これにより無駄なウィンドウが表示されるのを防ぐ
+// LSUIElement app doesn't use WindowGroup, AppDelegate manages everything
+// This prevents unnecessary windows from being displayed
 class GemisperApplication: NSApplication {
     override init() {
         super.init()
-        // アプリを非表示（ドックに表示しない）
+        // Hide app from dock
         self.setActivationPolicy(.accessory)
     }
     
@@ -35,43 +35,60 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // 設定の読み込み
+        // Load settings
         SettingsManager.shared.loadSettings()
         
-        // サービスの初期化
+        // Set initial app language
+        LocalizationManager.shared.setLanguage(SettingsManager.shared.settings.appLanguage)
+        
+        // Initialize services
         geminiService = GeminiService()
         recordingManager = RecordingManager()
         
-        // ステータスバーとホットキーのセットアップ
+        // Setup status bar and hotkeys
         statusBarController = StatusBarController()
         hotkeyManager = HotkeyManager(delegate: self)
         
-        // オーバーレイウィンドウの作成
+        // Create overlay window
         overlayWindow = OverlayWindow()
         
-        // ホットキーの登録
+        // Register hotkey
         hotkeyManager?.registerHotkey()
         
-        // アプリを非表示（ドックに表示しない）
+        // Hide app from dock
         NSApp.setActivationPolicy(.accessory)
         
-        // 録音タイマー（メニューバー更新用）
+        // Recording timer (for menu bar updates)
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             guard let self = self, let manager = self.recordingManager, manager.isRecording else { return }
             self.statusBarController?.updateRecordingDuration(manager.recordingDuration)
         }
         
-        // 設定ウィンドウを開く通知を購読
+        // Subscribe to open settings notification
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleOpenSettings),
             name: .openSettings,
             object: nil
         )
+        
+        // Listen for language changes to update window title
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(languageChanged),
+            name: .languageChanged,
+            object: nil
+        )
     }
     
     @objc private func handleOpenSettings() {
         showSettingsWindow()
+    }
+    
+    @objc private func languageChanged() {
+        DispatchQueue.main.async { [weak self] in
+            self?.settingsWindow?.title = L10n.Common.settings
+        }
     }
     
     func applicationWillTerminate(_ notification: Notification) {
@@ -91,7 +108,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     backing: .buffered,
                     defer: false
                 )
-                window.title = "Gemisper 設定"
+                window.title = L10n.Common.settings
                 window.contentView = NSHostingView(rootView: contentView)
                 window.isReleasedWhenClosed = false
                 window.center()
@@ -118,16 +135,16 @@ extension AppDelegate: HotkeyDelegate {
     }
     
     func recordingStarted() {
-        // Push to Talk: キーが押された
+        // Push to Talk: key pressed
         guard let recordingManager = recordingManager, !recordingManager.isRecording else { return }
         
-        // APIキーが設定されているか確認
+        // Check if API key is set
         guard !SettingsManager.shared.settings.apiKey.isEmpty else {
             showAPIKeyAlert()
             return
         }
         
-        // マイク権限の確認
+        // Check microphone permission
         RecordingManager.requestMicrophonePermission { [weak self] granted in
             DispatchQueue.main.async {
                 if granted {
@@ -140,20 +157,20 @@ extension AppDelegate: HotkeyDelegate {
     }
     
     func recordingStopped() {
-        // Push to Talk: キーが離された
+        // Push to Talk: key released
         guard let recordingManager = recordingManager, recordingManager.isRecording else { return }
         
         stopRecording()
     }
     
     private func startRecording() {
-        // APIキーが設定されているか確認
+        // Check if API key is set
         guard !SettingsManager.shared.settings.apiKey.isEmpty else {
             showAPIKeyAlert()
             return
         }
         
-        // マイク権限の確認
+        // Check microphone permission
         RecordingManager.requestMicrophonePermission { [weak self] granted in
             DispatchQueue.main.async {
                 if granted {
@@ -213,17 +230,17 @@ extension AppDelegate: HotkeyDelegate {
     }
     
     private func insertText(_ text: String) {
-        // 現在のアクティブアプリにテキストを入力
+        // Insert text into current active app
         TextInjector.shared.insertText(text)
     }
     
     private func showPermissionAlert() {
         let alert = NSAlert()
-        alert.messageText = "マイクへのアクセスが必要です"
-        alert.informativeText = "システム設定でマイクへのアクセスを許可してください。"
+        alert.messageText = L10n.Alert.microphoneAccessRequired
+        alert.informativeText = L10n.Alert.microphoneAccessMessage
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "設定を開く")
-        alert.addButton(withTitle: "キャンセル")
+        alert.addButton(withTitle: L10n.Alert.openSettings)
+        alert.addButton(withTitle: L10n.Common.cancel)
         
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {
@@ -235,20 +252,20 @@ extension AppDelegate: HotkeyDelegate {
     
     private func showError(_ error: Error) {
         let alert = NSAlert()
-        alert.messageText = "エラーが発生しました"
+        alert.messageText = L10n.Alert.errorOccurred
         alert.informativeText = error.localizedDescription
         alert.alertStyle = .critical
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L10n.Common.ok)
         alert.runModal()
     }
     
     private func showAPIKeyAlert() {
         let alert = NSAlert()
-        alert.messageText = "Gemini APIキーが必要です"
-        alert.informativeText = "設定画面でGemini APIキーを入力してください。\n\nGoogle AI Studioで無料で取得できます。"
+        alert.messageText = L10n.Alert.apiKeyRequired
+        alert.informativeText = L10n.Alert.apiKeyRequiredMessage + "\n\n" + L10n.Alert.apiKeyRequiredDetail
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "設定を開く")
-        alert.addButton(withTitle: "後で")
+        alert.addButton(withTitle: L10n.Alert.openSettings)
+        alert.addButton(withTitle: L10n.Alert.later)
         
         let response = alert.runModal()
         if response == .alertFirstButtonReturn {

@@ -130,16 +130,24 @@ class GeminiService {
             }
             
             // トークン使用量を記録
-            if let usageMetadata = json["usageMetadata"] as? [String: Any],
-               let promptTokenCount = usageMetadata["promptTokenCount"] as? Int,
-               let candidatesTokenCount = usageMetadata["candidatesTokenCount"] as? Int {
-                DispatchQueue.main.async {
-                    SettingsManager.shared.addTokenUsage(
-                        inputTokens: promptTokenCount,
-                        outputTokens: candidatesTokenCount,
-                        modelName: self.modelName
-                    )
+            print("[DEBUG] GeminiService: API response keys: \(json.keys)")
+            if let usageMetadata = json["usageMetadata"] as? [String: Any] {
+                print("[DEBUG] GeminiService: usageMetadata = \(usageMetadata)")
+                if let promptTokenCount = usageMetadata["promptTokenCount"] as? Int,
+                   let candidatesTokenCount = usageMetadata["candidatesTokenCount"] as? Int {
+                    print("[DEBUG] GeminiService: tokens input=\(promptTokenCount), output=\(candidatesTokenCount)")
+                    DispatchQueue.main.async {
+                        SettingsManager.shared.addTokenUsage(
+                            inputTokens: promptTokenCount,
+                            outputTokens: candidatesTokenCount,
+                            modelName: self.modelName
+                        )
+                    }
+                } else {
+                    print("[DEBUG] GeminiService: Failed to extract token counts")
                 }
+            } else {
+                print("[DEBUG] GeminiService: No usageMetadata in response")
             }
             
             var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
