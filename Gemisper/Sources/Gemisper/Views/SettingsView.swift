@@ -31,6 +31,12 @@ struct SettingsView: View {
                     Label("ホットキー", systemImage: "keyboard")
                 }
             
+            // プロンプト設定
+            promptSettings
+                .tabItem {
+                    Label("プロンプト", systemImage: "text.quote")
+                }
+            
             // 高度な設定
             advancedSettings
                 .tabItem {
@@ -317,6 +323,133 @@ struct SettingsView: View {
         NotificationCenter.default.post(name: .updateHotkey, object: nil)
     }
     
+    // MARK: - Prompt Settings
+    
+    private var promptSettings: some View {
+        Form {
+            Section("文字起こしプロンプト") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("カスタムプロンプト")
+                        .font(.headline)
+                    
+                    Text("空欄の場合はデフォルトプロンプトを使用します")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    TextEditor(text: Binding(
+                        get: { settingsManager.settings.customPrompt ?? "" },
+                        set: { newValue in
+                            settingsManager.settings.customPrompt = newValue.isEmpty ? nil : newValue
+                            settingsManager.saveSettings()
+                        }
+                    ))
+                    .frame(height: 120)
+                    .font(.system(.body, design: .monospaced))
+                    .border(Color.gray.opacity(0.3), width: 1)
+                    
+                    HStack {
+                        Button("デフォルトに戻す") {
+                            settingsManager.settings.customPrompt = nil
+                            settingsManager.saveSettings()
+                        }
+                        .disabled(settingsManager.settings.customPrompt == nil)
+                        
+                        Spacer()
+                        
+                        Button("クリア") {
+                            settingsManager.settings.customPrompt = ""
+                            settingsManager.saveSettings()
+                        }
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("デフォルトプロンプト:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                .padding(.top, 8)
+            }
+            
+            Section("コマンドモード") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("トリガーワード")
+                        .font(.headline)
+                    
+                    Text("音声入力の先頭にこれらのワードがある場合、zshコマンドとして解釈されます")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    // トリガーワードリスト
+                    FlowLayout(spacing: 8) {
+                        ForEach(settingsManager.settings.commandModeTriggers, id: \.self) { trigger in
+                            HStack(spacing: 4) {
+                                Text(trigger)
+                                    .font(.system(.body, design: .monospaced))
+                                
+                                Button(action: {
+                                    settingsManager.settings.commandModeTriggers.removeAll { $0 == trigger }
+                                    settingsManager.saveSettings()
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.red)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .cornerRadius(4)
+                        }
+                    }
+                    
+                    // 新しいトリガー追加
+                    HStack {
+                        TextField("新しいトリガー", text: $newTriggerInput)
+                            .textFieldStyle(.roundedBorder)
+                        
+                        Button("追加") {
+                            let trimmed = newTriggerInput.trimmingCharacters(in: .whitespaces)
+                            if !trimmed.isEmpty && !settingsManager.settings.commandModeTriggers.contains(trimmed) {
+                                settingsManager.settings.commandModeTriggers.append(trimmed)
+                                settingsManager.saveSettings()
+                                newTriggerInput = ""
+                            }
+                        }
+                        .disabled(newTriggerInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .padding(.top, 8)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("使用例:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("\"コマンド ホームディレクトリのファイル一覧\" → ls ~")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(4)
+                }
+                .padding(.top, 8)
+            }
+        }
+        .formStyle(.grouped)
+    }
+    
+    @State private var newTriggerInput: String = ""
+    
     // MARK: - Advanced Settings
     
     private var advancedSettings: some View {
@@ -456,4 +589,51 @@ class HotkeyRecorderNSView: NSView {
 
 extension Notification.Name {
     static let updateHotkey = Notification.Name("updateHotkey")
+}
+
+// MARK: - Flow Layout
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
+        return result.size
+    }
+    
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
+        for (index, subview) in subviews.enumerated() {
+            subview.place(at: CGPoint(x: result.positions[index].x + bounds.minX, 
+                                      y: result.positions[index].y + bounds.minY), 
+                         proposal: .unspecified)
+        }
+    }
+    
+    struct FlowResult {
+        var positions: [CGPoint] = []
+        var size: CGSize = .zero
+        
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
+            var x: CGFloat = 0
+            var y: CGFloat = 0
+            var rowHeight: CGFloat = 0
+            
+            for subview in subviews {
+                let size = subview.sizeThatFits(.unspecified)
+                
+                if x + size.width > maxWidth && x > 0 {
+                    x = 0
+                    y += rowHeight + spacing
+                    rowHeight = 0
+                }
+                
+                positions.append(CGPoint(x: x, y: y))
+                rowHeight = max(rowHeight, size.height)
+                x += size.width + spacing
+            }
+            
+            self.size = CGSize(width: maxWidth, height: y + rowHeight)
+        }
+    }
 }

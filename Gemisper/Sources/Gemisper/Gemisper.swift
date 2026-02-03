@@ -202,13 +202,31 @@ extension AppDelegate: HotkeyDelegate {
         
         Task {
             do {
-                let text = try await geminiService?.transcribe(audioURL: url)
+                guard let service = geminiService else { return }
+                
+                // まず通常の文字起こしを実行
+                let transcribedText = try await service.transcribe(audioURL: url)
+                
+                // コマンドモードを検出
+                let (isCommand, cleanedText) = service.detectCommandMode(transcribedText: transcribedText)
+                
+                let finalText: String
+                if isCommand {
+                    // コマンドモード: zshコマンドを生成
+                    DispatchQueue.main.async { [weak self] in
+                        self?.overlayWindow?.showProcessing()
+                    }
+                    finalText = try await service.generateZshCommand(instruction: cleanedText)
+                } else {
+                    // 通常モード: そのまま出力
+                    finalText = transcribedText
+                }
                 
                 DispatchQueue.main.async { [weak self] in
                     self?.overlayWindow?.hide()
                     
-                    if let transcribedText = text, !transcribedText.isEmpty {
-                        self?.insertText(transcribedText)
+                    if !finalText.isEmpty {
+                        self?.insertText(finalText)
                     }
                 }
             } catch let error as GeminiError {

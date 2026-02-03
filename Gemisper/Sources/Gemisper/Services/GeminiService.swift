@@ -32,6 +32,90 @@ class GeminiService {
         SettingsManager.shared.settings.selectedModel.rawValue
     }
     
+    // MARK: - Command Mode Detection
+    
+    func detectCommandMode(transcribedText: String) -> (isCommand: Bool, cleanedText: String) {
+        let triggers = SettingsManager.shared.settings.commandModeTriggers
+        let lowercasedText = transcribedText.lowercased()
+        
+        for trigger in triggers {
+            let lowercasedTrigger = trigger.lowercased()
+            // 先頭にトリガーがあるかチェック（前後の空白を無視）
+            let trimmedText = transcribedText.trimmingCharacters(in: .whitespaces)
+            if trimmedText.lowercased().hasPrefix(lowercasedTrigger) {
+                // トリガー部分を除去
+                let cleaned = String(trimmedText.dropFirst(trigger.count)).trimmingCharacters(in: .whitespaces)
+                return (true, cleaned)
+            }
+        }
+        
+        return (false, transcribedText)
+    }
+    
+    func generateZshCommand(instruction: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw GeminiError.noAPIKey
+        }
+        
+        let prompt = """
+        Convert the following instruction to a zsh command.
+        Output ONLY the command itself, with no explanation, no markdown, no backticks.
+        The command should be safe and follow best practices.
+        
+        Instruction: \(instruction)
+        
+        Command:
+        """
+        
+        return try await generateContent(prompt: prompt)
+    }
+    
+    private func generateContent(prompt: String) async throws -> String {
+        let requestBody: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt]
+                    ]
+                ]
+            ],
+            "generationConfig": [
+                "temperature": 0.1,
+                "maxOutputTokens": 1024
+            ]
+        ]
+        
+        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let urlString = "\(baseURL)/\(modelName):generateContent?key=\(apiKey)"
+        guard let url = URL(string: urlString) else {
+            throw GeminiError.invalidResponse
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = jsonData
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw GeminiError.apiError("HTTP error")
+        }
+        
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let candidates = json["candidates"] as? [[String: Any]],
+              let firstCandidate = candidates.first,
+              let content = firstCandidate["content"] as? [String: Any],
+              let parts = content["parts"] as? [[String: Any]],
+              let firstPart = parts.first,
+              let text = firstPart["text"] as? String else {
+            throw GeminiError.invalidResponse
+        }
+        
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    
     func transcribe(audioURL: URL) async throws -> String {
         guard !apiKey.isEmpty else {
             throw GeminiError.noAPIKey
@@ -50,23 +134,33 @@ class GeminiService {
         // ファイルサイズが20MBを超える場合はFiles APIを使用
         let audioBase64 = audioData.base64EncodedString()
         
-        // プロンプトの構築
-        var prompt = "以下の音声を文字起こししてください。"
-        
-        if settings.removeFillerWords {
-            prompt += " 「えーと」「あの」「まあ」「なんか」などのフィラーワードは削除してください。"
-        }
-        
-        if settings.addPunctuation {
-            prompt += " 適切な句読点を追加して読みやすく整形してください。"
-        }
-        
-        prompt += " \(settings.style.prompt)"
-        
-        if settings.language == "ja" {
-            prompt += " 日本語で応答してください。"
+        // カスタムプロンプトが設定されていれば使用、なければデフォルト
+        var prompt: String
+        if let customPrompt = settings.customPrompt, !customPrompt.isEmpty {
+            prompt = customPrompt
         } else {
-            prompt += " 言語: \(settings.language)"
+            // デフォルトプロンプト（英語）
+            prompt = "Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text."
+            
+            if settings.language == "ja" {
+                prompt += " Respond in Japanese."
+            } else if settings.language != "auto" {
+                prompt += " Respond in \(settings.language)."
+            }
+        }
+        
+        // スタイル設定（カスタムプロンプトがない場合のみ）
+        if settings.customPrompt == nil || settings.customPrompt!.isEmpty {
+            switch settings.style {
+            case .formal:
+                prompt += " Use formal and professional language."
+            case .casual:
+                prompt += " Use casual and friendly language."
+            case .concise:
+                prompt += " Be concise and to the point."
+            case .natural:
+                break
+            }
         }
         
         // リクエストボディの構築

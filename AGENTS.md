@@ -122,7 +122,9 @@ swift test
 
 ## Subagentの積極的な活用
 
-このプロジェクトでは、以下の場合に積極的にSubagent（`Task`ツール）を使用してください：
+このプロジェクトでは、以下の場合に積極的にSubagent（`Task`ツール）を使用してください。
+
+**重要**: Subagentは隔離されたコンテキストで実行され、メインエージェントの会話履歴やコンテキストに**アクセスできません**。すべての必要な情報はプロンプトに明示的に含める必要があります。
 
 ### 推奨する使用シナリオ
 
@@ -154,31 +156,54 @@ swift test
 以下のような場合はSubagentを使用してメインコンテキストをクリーンに保ちます：
 
 - 試行錯誤が予想される調査や実験
-- 最新の外部ライブラリ情報が必要な場合
+- 最新の外部ライブラリ情報が必要な場合（Web検索をSubagentに任せる）
 - 特定の機能の実装をスクラッチから行う場合
+
+#### 5. 直接使用を避けるケース
+以下のケースではSubagentを使わず、メインエージェントで直接処理してください：
+
+- 単純な質問（「このプロジェクトで使われている言語は？」など）
+- 数ステップで完了する簡単なタスク（「特定の関数をxxxにリネーム」など）
+- 既存のコードに対する単純な置換作業
 
 ### Subagent使用時のベストプラクティス
 
-1. **明確なタスク定義**: Subagentには具体的で狭い範囲のタスクを与える
-2. **必要な背景情報の提供**: ファイルパス、関連コード、期待する出力形式を明示
+1. **明確なタスク定義**: Subagentには具体的で狭い範囲のタスクを与える（3-5語で説明できる程度）
+2. **すべての背景情報をプロンプトに含める**: Subagentはメインエージェントのコンテキストを見えないため、ファイルパス、関連コード、期待する出力形式などを明示
 3. **並列化の活用**: 独立したタスクは並列実行で効率化
 4. **結果の統合**: Subagentからの結果を確認し、必要に応じて統合
+5. **直接フォワードしない**: ユーザーのプロンプトをそのままSubagentに渡さず、具体的なタスクに分解してから実行
 
 ### 使用例
 
 ```
 # 複数ファイルのリファクタリング（並列実行）
-Task 1: SettingsView.swiftのプレビュー構文を修正
-Task 2: DictionaryView.swiftのプレビュー構文を修正
-Task 3: StatusBarController.swiftのプレビュー構文を修正
+Task 1 (coder): SettingsView.swiftのプレビュー構文を修正
+Task 2 (coder): DictionaryView.swiftのプレビュー構文を修正  
+Task 3 (coder): StatusBarController.swiftのプレビュー構文を修正
 
 # 調査タスク
-Task: "HotkeyManager.swiftでPush to Talkの実装を確認し、
-       修飾キー検出のロジックを要約して返してください"
+Task (coder): 
+  "Sources/Gemisper/Services/HotkeyManager.swift を読み、
+   Push to Talkの修飾キー検出ロジックを要約して返してください"
 
 # エラー修正
-Task: "ビルドエラー 'Cannot find type RecordingManager' を修正してください"
+Task (coder):
+  "ビルドエラー 'Cannot find type RecordingManager in scope' が発生。
+   Sources/Gemisper/Services/RecordingManager.swift が存在するか確認し、
+   存在する場合は修正方法を返してください"
+
+# Web検索を分離
+Task (coder):
+  「SwiftUIのMenuBarExtraの最新のベストプラクティスを検索し、
+   主要なAPI変更点をまとめて返してください」
 ```
+
+### 備考
+
+- Subagent名は通常 `coder` を使用（汎用的なコーディングタスク用）
+- Subagentの結果はメインエージェントに返され、統合してユーザーに提示する
+- 複雑なタスクはTodoリストで管理し、Subagentに分担させる
 
 ## リファレンス
 

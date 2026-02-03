@@ -134,6 +134,7 @@ struct AppSettings: Codable, Equatable {
     var customPrompt: String?
     var appLanguage: AppLanguage
     var rulesEnabled: Bool
+    var commandModeTriggers: [String]  // コマンドモードのトリガーワード
     
     static let `default` = AppSettings(
         apiKey: "",
@@ -150,7 +151,8 @@ struct AppSettings: Codable, Equatable {
         selectedModel: .flashLite, // デフォルト: gemini-2.5-flash-lite
         customPrompt: nil,
         appLanguage: .english,
-        rulesEnabled: false
+        rulesEnabled: false,
+        commandModeTriggers: ["コマンド", "command"]  // デフォルトのトリガー
     )
 }
 
