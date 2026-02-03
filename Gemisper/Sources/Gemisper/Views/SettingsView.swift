@@ -56,37 +56,52 @@ struct SettingsView: View {
     // MARK: - General Settings
     
     private var generalSettings: some View {
-        Form {
-            Section {
-                Toggle("フィラーワードを除去", isOn: $settingsManager.settings.removeFillerWords)
-                Toggle("自動で句読点を追加", isOn: $settingsManager.settings.addPunctuation)
-                Picker("文体スタイル", selection: $settingsManager.settings.style) {
-                    ForEach(TranscriptionStyle.allCases, id: \.self) { style in
-                        Text(style.displayName).tag(style)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 文字起こしオプション
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("文字起こしオプション")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("フィラーワードを除去", isOn: $settingsManager.settings.removeFillerWords)
+                        Toggle("自動で句読点を追加", isOn: $settingsManager.settings.addPunctuation)
+                        
+                        Picker("文体スタイル", selection: $settingsManager.settings.style) {
+                            ForEach(TranscriptionStyle.allCases, id: \.self) { style in
+                                Text(style.displayName).tag(style)
+                            }
+                        }
+                        
+                        Picker("言語", selection: $settingsManager.settings.language) {
+                            Text("日本語").tag("ja")
+                            Text("英語").tag("en")
+                            Text("自動検出").tag("auto")
+                        }
                     }
+                    .padding(.leading, 4)
                 }
-                Picker("言語", selection: $settingsManager.settings.language) {
-                    Text("日本語").tag("ja")
-                    Text("英語").tag("en")
-                    Text("自動検出").tag("auto")
+                
+                Divider()
+                
+                // インターフェース
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("インターフェース")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("録音インジケーターを表示", isOn: $settingsManager.settings.showOverlay)
+                            .help("画面下部に小さく録音中のインジケーターを表示します")
+                        Toggle("効果音を再生", isOn: $settingsManager.settings.playSoundEffects)
+                    }
+                    .padding(.leading, 4)
                 }
-            } header: {
-                Text("文字起こしオプション")
-                    .font(.headline)
-                    .foregroundColor(.primary)
             }
-            
-            Section {
-                Toggle("録音インジケーターを表示", isOn: $settingsManager.settings.showOverlay)
-                    .help("画面下部に小さく録音中のインジケーターを表示します")
-                Toggle("効果音を再生", isOn: $settingsManager.settings.playSoundEffects)
-            } header: {
-                Text("インターフェース")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-            }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: settingsManager.settings) { _ in
             settingsManager.saveSettings()
         }
@@ -97,116 +112,127 @@ struct SettingsView: View {
     @State private var showAPIKey = false
     
     private var apiSettings: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("APIキー")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // Gemini API
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Gemini API")
                         .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    HStack {
-                        // SecureFieldはペーストに問題があるためTextFieldを使用
-                        // 表示/非表示切り替えで対応
-                        if showAPIKey {
-                            TextField("APIキーを入力", text: $settingsManager.settings.apiKey)
-                                .textFieldStyle(.roundedBorder)
-                        } else {
-                            SecureField("APIキーを入力", text: $settingsManager.settings.apiKey)
-                                .textFieldStyle(.roundedBorder)
-                        }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("APIキー")
+                            .font(.headline)
                         
-                        // 表示/非表示切り替えボタン
-                        Button(action: { showAPIKey.toggle() }) {
-                            Image(systemName: showAPIKey ? "eye.slash" : "eye")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showAPIKey ? "隠す" : "表示")
-                        
-                        // ペーストボタン
-                        Button(action: pasteFromClipboard) {
-                            Image(systemName: "doc.on.clipboard")
-                                .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.plain)
-                        .help("クリップボードから貼り付け")
-                        
-                        Button(action: validateAPIKey) {
-                            if isValidatingKey {
-                                ProgressView()
-                                    .controlSize(.small)
+                        HStack {
+                            // SecureFieldはペーストに問題があるためTextFieldを使用
+                            // 表示/非表示切り替えで対応
+                            if showAPIKey {
+                                TextField("APIキーを入力", text: $settingsManager.settings.apiKey)
+                                    .textFieldStyle(.roundedBorder)
                             } else {
-                                Text("検証")
+                                SecureField("APIキーを入力", text: $settingsManager.settings.apiKey)
+                                    .textFieldStyle(.roundedBorder)
+                            }
+                            
+                            // 表示/非表示切り替えボタン
+                            Button(action: { showAPIKey.toggle() }) {
+                                Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(showAPIKey ? "隠す" : "表示")
+                            
+                            // ペーストボタン
+                            Button(action: pasteFromClipboard) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .foregroundColor(.blue)
+                            }
+                            .buttonStyle(.plain)
+                            .help("クリップボードから貼り付け")
+                            
+                            Button(action: validateAPIKey) {
+                                if isValidatingKey {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Text("検証")
+                                }
+                            }
+                            .disabled(settingsManager.settings.apiKey.isEmpty || isValidatingKey)
+                        }
+                        
+                        HStack {
+                            switch keyStatus {
+                            case .valid:
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("APIキーは有効です")
+                                    .foregroundColor(.green)
+                            case .invalid:
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.red)
+                                Text("APIキーが無効です")
+                                    .foregroundColor(.red)
+                            case .unknown:
+                                EmptyView()
                             }
                         }
-                        .disabled(settingsManager.settings.apiKey.isEmpty || isValidatingKey)
-                    }
-                    
-                    HStack {
-                        switch keyStatus {
-                        case .valid:
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("APIキーは有効です")
-                                .foregroundColor(.green)
-                        case .invalid:
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.red)
-                            Text("APIキーが無効です")
-                                .foregroundColor(.red)
-                        case .unknown:
-                            EmptyView()
-                        }
-                    }
-                    .font(.caption)
-                }
-                
-                Text("Gemini APIキーは [Google AI Studio](https://aistudio.google.com/app/apikey) から取得できます。")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 8)
-            } header: {
-                Text("Gemini API")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-            }
-            
-            Section {
-                Picker("モデル", selection: $settingsManager.settings.selectedModel) {
-                    ForEach(GeminiModel.allCases.filter { $0.isRecommended }, id: \.self) { model in
-                        Text(model.displayName).tag(model)
-                    }
-                }
-                
-                // 選択中のモデルの説明
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(settingsManager.settings.selectedModel.description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    HStack {
-                        Text("料金: \(settingsManager.settings.selectedModel.pricingDescription)")
-                            .font(.caption2)
-                            .foregroundColor(.blue)
                         
-                        if settingsManager.settings.selectedModel.hasFreeTier {
-                            Text("無料枠あり")
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.green.opacity(0.2))
-                                .foregroundColor(.green)
-                                .cornerRadius(4)
-                        }
+                        Text("Gemini APIキーは [Google AI Studio](https://aistudio.google.com/app/apikey) から取得できます。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
                     }
+                    .padding(.leading, 4)
                 }
-                .padding(.top, 4)
-            } header: {
-                Text("モデル設定")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                
+                Divider()
+                
+                // モデル設定
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("モデル設定")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("モデル", selection: $settingsManager.settings.selectedModel) {
+                            ForEach(GeminiModel.allCases.filter { $0.isRecommended }, id: \.self) { model in
+                                Text(model.displayName).tag(model)
+                            }
+                        }
+                        
+                        // 選択中のモデルの説明
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(settingsManager.settings.selectedModel.description)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                Text("料金: \(settingsManager.settings.selectedModel.pricingDescription)")
+                                    .font(.caption2)
+                                    .foregroundColor(.blue)
+                                
+                                if settingsManager.settings.selectedModel.hasFreeTier {
+                                    Text("無料枠あり")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.2))
+                                        .foregroundColor(.green)
+                                        .cornerRadius(4)
+                                }
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
+                    .padding(.leading, 4)
+                }
             }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onChange(of: settingsManager.settings.apiKey) { _ in
             settingsManager.saveSettings()
             keyStatus = .unknown
@@ -219,104 +245,139 @@ struct SettingsView: View {
     // MARK: - Hotkey Settings
     
     private var hotkeySettings: some View {
-        Form {
-            Section("入力モード") {
-                Picker("モード", selection: $settingsManager.settings.pushToTalkMode) {
-                    Text("Push to Talk").tag(true)
-                    Text("トグルモード").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: settingsManager.settings.pushToTalkMode) { _ in
-                    settingsManager.saveSettings()
-                    NotificationCenter.default.post(name: .updateHotkey, object: nil)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 入力モード
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("入力モード")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("モード", selection: $settingsManager.settings.pushToTalkMode) {
+                            Text("Push to Talk").tag(true)
+                            Text("トグルモード").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: settingsManager.settings.pushToTalkMode) { _ in
+                            settingsManager.saveSettings()
+                            NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                        }
+                        
+                        if settingsManager.settings.pushToTalkMode {
+                            Text("キーを押している間だけ録音します")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("ホットキーで録音の開始/停止を切り替えます")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.leading, 4)
                 }
                 
                 if settingsManager.settings.pushToTalkMode {
-                    Text("キーを押している間だけ録音します")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                } else {
-                    Text("ホットキーで録音の開始/停止を切り替えます")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            if settingsManager.settings.pushToTalkMode {
-                Section("Push to Talk キー（複数選択可）") {
-                    // 複合キー選択
-                    HStack(spacing: 8) {
-                        ForEach(PushToTalkKey.allCases, id: \.self) { key in
-                            Toggle(key.shortDisplayName, isOn: Binding(
-                                get: {
-                                    settingsManager.settings.pushToTalkKeys.contains(key)
-                                },
-                                set: { isSelected in
-                                    if isSelected {
-                                        settingsManager.settings.pushToTalkKeys.append(key)
-                                    } else {
-                                        settingsManager.settings.pushToTalkKeys.removeAll { $0 == key }
-                                    }
-                                    // 最低1つは選択されていることを保証
-                                    if settingsManager.settings.pushToTalkKeys.isEmpty {
-                                        settingsManager.settings.pushToTalkKeys = [.option]
-                                    }
-                                    settingsManager.saveSettings()
-                                    NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                    Divider()
+                    
+                    // Push to Talk キー
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Push to Talk キー（複数選択可）")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            // 複合キー選択
+                            HStack(spacing: 8) {
+                                ForEach(PushToTalkKey.allCases, id: \.self) { key in
+                                    Toggle(key.shortDisplayName, isOn: Binding(
+                                        get: {
+                                            settingsManager.settings.pushToTalkKeys.contains(key)
+                                        },
+                                        set: { isSelected in
+                                            if isSelected {
+                                                settingsManager.settings.pushToTalkKeys.append(key)
+                                            } else {
+                                                settingsManager.settings.pushToTalkKeys.removeAll { $0 == key }
+                                            }
+                                            // 最低1つは選択されていることを保証
+                                            if settingsManager.settings.pushToTalkKeys.isEmpty {
+                                                settingsManager.settings.pushToTalkKeys = [.option]
+                                            }
+                                            settingsManager.saveSettings()
+                                            NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                                        }
+                                    ))
+                                    .toggleStyle(.button)
                                 }
-                            ))
-                            .toggleStyle(.button)
+                            }
+                            .padding(.vertical, 4)
+                            
+                            HStack {
+                                Text("現在の設定:")
+                                Spacer()
+                                Text("\(settingsManager.settings.pushToTalkKeys.combinedDisplayName) を押して話す")
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.top, 8)
                         }
+                        .padding(.leading, 4)
                     }
-                    .padding(.vertical, 4)
+                } else {
+                    Divider()
                     
-                    HStack {
-                        Text("現在の設定:")
-                        Spacer()
-                        Text("\(settingsManager.settings.pushToTalkKeys.combinedDisplayName) を押して話す")
-                            .foregroundColor(.secondary)
+                    // トグルホットキー
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("トグルホットキー")
+                            .font(.headline)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("現在のホットキー: \(hotkeyDescription)")
+                                .font(.headline)
+                            
+                            Text("新しいホットキーを設定:")
+                                .padding(.top, 8)
+                            
+                            HotkeyRecorderView { modifierFlags, keyCode in
+                                settingsManager.settings.hotkeyModifier = Int(modifierFlags.rawValue)
+                                settingsManager.settings.hotkeyKeyCode = Int(keyCode)
+                                settingsManager.saveSettings()
+                                
+                                // ホットキーを再登録
+                                NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                            }
+                            .frame(height: 60)
+                            .background(Color.gray.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        .padding(.leading, 4)
                     }
-                    .padding(.top, 8)
-                }
-            } else {
-                Section("トグルホットキー") {
-                    Text("現在のホットキー: \(hotkeyDescription)")
-                        .font(.headline)
                     
-                    Text("新しいホットキーを設定:")
-                        .padding(.top, 8)
+                    Divider()
                     
-                    HotkeyRecorderView { modifierFlags, keyCode in
-                        settingsManager.settings.hotkeyModifier = Int(modifierFlags.rawValue)
-                        settingsManager.settings.hotkeyKeyCode = Int(keyCode)
-                        settingsManager.saveSettings()
+                    // プリセット
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("プリセット")
+                            .font(.headline)
                         
-                        // ホットキーを再登録
-                        NotificationCenter.default.post(name: .updateHotkey, object: nil)
-                    }
-                    .frame(height: 60)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(8)
-                }
-                
-                Section("プリセット") {
-                    HStack {
-                        Button("⌘⇧F3") {
-                            setHotkey(modifier: .command.union(.shift), keyCode: 99)
+                        HStack {
+                            Button("⌘⇧F3") {
+                                setHotkey(modifier: .command.union(.shift), keyCode: 99)
+                            }
+                            
+                            Button("⌥Space") {
+                                setHotkey(modifier: .option, keyCode: 49)
+                            }
+                            
+                            Button("Fn F6") {
+                                setHotkey(modifier: .function, keyCode: 97)
+                            }
                         }
-                        
-                        Button("⌥Space") {
-                            setHotkey(modifier: .option, keyCode: 49)
-                        }
-                        
-                        Button("Fn F6") {
-                            setHotkey(modifier: .function, keyCode: 97)
-                        }
+                        .padding(.leading, 4)
                     }
                 }
             }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var hotkeyDescription: String {
@@ -344,134 +405,143 @@ struct SettingsView: View {
     // MARK: - Prompt Settings
     
     private var promptSettings: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("カスタムプロンプト")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 文字起こしプロンプト
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("文字起こしプロンプト")
                         .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    Text("空欄の場合はデフォルトプロンプトを使用します")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    TextEditor(text: Binding(
-                        get: { settingsManager.settings.customPrompt ?? "" },
-                        set: { newValue in
-                            settingsManager.settings.customPrompt = newValue.isEmpty ? nil : newValue
-                            settingsManager.saveSettings()
-                        }
-                    ))
-                    .frame(height: 120)
-                    .font(.system(.body, design: .monospaced))
-                    .border(Color.gray.opacity(0.3), width: 1)
-                    
-                    HStack {
-                        Button("デフォルトに戻す") {
-                            settingsManager.settings.customPrompt = nil
-                            settingsManager.saveSettings()
-                        }
-                        .disabled(settingsManager.settings.customPrompt == nil)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("カスタムプロンプト")
+                            .font(.headline)
                         
-                        Spacer()
+                        Text("空欄の場合はデフォルトプロンプトを使用します")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         
-                        Button("クリア") {
-                            settingsManager.settings.customPrompt = ""
-                            settingsManager.saveSettings()
-                        }
-                    }
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("デフォルトプロンプト:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(4)
-                }
-                .padding(.top, 8)
-            } header: {
-                Text("文字起こしプロンプト")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-            }
-            
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("トリガーワード")
-                        .font(.headline)
-                    
-                    Text("音声入力の先頭にこれらのワードがある場合、zshコマンドとして解釈されます")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    // トリガーワードリスト
-                    FlowLayout(spacing: 8) {
-                        ForEach(settingsManager.settings.commandModeTriggers, id: \.self) { trigger in
-                            HStack(spacing: 4) {
-                                Text(trigger)
-                                    .font(.system(.body, design: .monospaced))
-                                
-                                Button(action: {
-                                    settingsManager.settings.commandModeTriggers.removeAll { $0 == trigger }
-                                    settingsManager.saveSettings()
-                                }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.caption)
-                                        .foregroundColor(.red)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1))
-                            .foregroundColor(.blue)
-                            .cornerRadius(4)
-                        }
-                    }
-                    
-                    // 新しいトリガー追加
-                    HStack {
-                        TextField("新しいトリガー", text: $newTriggerInput)
-                            .textFieldStyle(.roundedBorder)
-                        
-                        Button("追加") {
-                            let trimmed = newTriggerInput.trimmingCharacters(in: .whitespaces)
-                            if !trimmed.isEmpty && !settingsManager.settings.commandModeTriggers.contains(trimmed) {
-                                settingsManager.settings.commandModeTriggers.append(trimmed)
+                        TextEditor(text: Binding(
+                            get: { settingsManager.settings.customPrompt ?? "" },
+                            set: { newValue in
+                                settingsManager.settings.customPrompt = newValue.isEmpty ? nil : newValue
                                 settingsManager.saveSettings()
-                                newTriggerInput = ""
+                            }
+                        ))
+                        .frame(height: 120)
+                        .font(.system(.body, design: .monospaced))
+                        .border(Color.gray.opacity(0.3), width: 1)
+                        
+                        HStack {
+                            Button("デフォルトに戻す") {
+                                settingsManager.settings.customPrompt = nil
+                                settingsManager.saveSettings()
+                            }
+                            .disabled(settingsManager.settings.customPrompt == nil)
+                            
+                            Spacer()
+                            
+                            Button("クリア") {
+                                settingsManager.settings.customPrompt = ""
+                                settingsManager.saveSettings()
                             }
                         }
-                        .disabled(newTriggerInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("デフォルトプロンプト:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Text("Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .padding(.top, 8)
                     }
-                    .padding(.top, 8)
+                    .padding(.leading, 4)
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("使用例:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                Divider()
+                
+                // コマンドモード
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("コマンドモード")
+                        .font(.headline)
+                        .foregroundColor(.primary)
                     
-                    Text("\"コマンド ホームディレクトリのファイル一覧\" → ls ~")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .padding(8)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(4)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("トリガーワード")
+                            .font(.headline)
+                        
+                        Text("音声入力の先頭にこれらのワードがある場合、zshコマンドとして解釈されます")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        // トリガーワードリスト
+                        FlowLayout(spacing: 8) {
+                            ForEach(settingsManager.settings.commandModeTriggers, id: \.self) { trigger in
+                                HStack(spacing: 4) {
+                                    Text(trigger)
+                                        .font(.system(.body, design: .monospaced))
+                                    
+                                    Button(action: {
+                                        settingsManager.settings.commandModeTriggers.removeAll { $0 == trigger }
+                                        settingsManager.saveSettings()
+                                    }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.red)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.blue.opacity(0.1))
+                                .foregroundColor(.blue)
+                                .cornerRadius(4)
+                            }
+                        }
+                        
+                        // 新しいトリガー追加
+                        HStack {
+                            TextField("新しいトリガー", text: $newTriggerInput)
+                                .textFieldStyle(.roundedBorder)
+                            
+                            Button("追加") {
+                                let trimmed = newTriggerInput.trimmingCharacters(in: .whitespaces)
+                                if !trimmed.isEmpty && !settingsManager.settings.commandModeTriggers.contains(trimmed) {
+                                    settingsManager.settings.commandModeTriggers.append(trimmed)
+                                    settingsManager.saveSettings()
+                                    newTriggerInput = ""
+                                }
+                            }
+                            .disabled(newTriggerInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        .padding(.top, 8)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("使用例:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Text("\"コマンド ホームディレクトリのファイル一覧\" → ls ~")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                        .padding(.top, 8)
+                    }
+                    .padding(.leading, 4)
                 }
-                .padding(.top, 8)
-            } header: {
-                Text("コマンドモード")
-                    .font(.headline)
-                    .foregroundColor(.primary)
             }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     @State private var newTriggerInput: String = ""
@@ -484,33 +554,52 @@ struct SettingsView: View {
     // MARK: - Advanced Settings
     
     private var advancedSettings: some View {
-        Form {
-            Section("デバッグ") {
-                Toggle("ログを有効化", isOn: .constant(false))
-                    .disabled(true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // デバッグ
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("デバッグ")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("ログを有効化", isOn: .constant(false))
+                            .disabled(true)
+                        
+                        Button("キャッシュをクリア") {
+                            clearCache()
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
                 
-                Button("キャッシュをクリア") {
-                    clearCache()
+                Divider()
+                
+                // アプリ情報
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("アプリ情報")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("バージョン")
+                            Spacer()
+                            Text("1.0.0")
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        HStack {
+                            Text("ビルド")
+                            Spacer()
+                            Text("2025.02.03")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.leading, 4)
                 }
             }
-            
-            Section("アプリ情報") {
-                HStack {
-                    Text("バージョン")
-                    Spacer()
-                    Text("1.0.0")
-                        .foregroundColor(.secondary)
-                }
-                
-                HStack {
-                    Text("ビルド")
-                    Spacer()
-                    Text("2025.02.03")
-                        .foregroundColor(.secondary)
-                }
-            }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private func pasteFromClipboard() {
@@ -547,136 +636,163 @@ struct SettingsView: View {
     // MARK: - Rules Settings
     
     private var rulesSettings: some View {
-        Form {
-            Section {
-                Toggle("ルールシステムを有効化", isOn: $settingsManager.settings.rulesEnabled)
-                    .onChange(of: settingsManager.settings.rulesEnabled) { _ in
-                        settingsManager.saveSettings()
-                    }
-                
-                Text("音声入力の先頭にキーワードを検出し、自動で処理を切り替えます")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Section("ルール設定ファイル") {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("~/.config/gemisper/rules.yaml")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundColor(.secondary)
-                        
-                        Spacer()
-                        
-                        Button("フォルダを開く") {
-                            openRulesDirectory()
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // ルールシステム有効化
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("ルールシステムを有効化", isOn: $settingsManager.settings.rulesEnabled)
+                        .onChange(of: settingsManager.settings.rulesEnabled) { _ in
+                            settingsManager.saveSettings()
                         }
-                        .buttonStyle(.borderless)
-                        .controlSize(.small)
-                    }
                     
-                    // YAMLエディタ
-                    ZStack(alignment: .topLeading) {
-                        TextEditor(text: $settingsManager.rulesYAMLContent)
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 200, maxHeight: .infinity)
-                            .border(validationBorderColor, width: 1)
-                            .onChange(of: settingsManager.rulesYAMLContent) { newValue in
-                                validateRulesContent(newValue)
-                            }
-                        
-                        if settingsManager.rulesYAMLContent.isEmpty {
-                            Text("YAML形式でルールを定義...")
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 8)
-                                .allowsHitTesting(false)
-                        }
-                    }
-                    
-                    // 検証結果
-                    if let error = rulesValidationError {
-                        HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                            Text(error)
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
-                        .padding(.vertical, 4)
-                    } else if !settingsManager.rulesYAMLContent.isEmpty {
-                        HStack {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
-                            Text("有効なYAMLです")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    
-                    HStack {
-                        Button("デフォルトに戻す") {
-                            showRulesResetConfirmation = true
-                        }
-                        .alert("ルールをリセット", isPresented: $showRulesResetConfirmation) {
-                            Button("キャンセル", role: .cancel) {}
-                            Button("リセット", role: .destructive) {
-                                resetRulesToDefault()
-                            }
-                        } message: {
-                            Text("ルール設定をデフォルトに戻しますか？現在の設定は失われます。")
-                        }
-                        
-                        Spacer()
-                        
-                        Button("保存") {
-                            saveRules()
-                        }
-                        .disabled(!isRulesValid)
-                        .keyboardShortcut("s", modifiers: .command)
-                    }
-                }
-            }
-            
-            Section("トリガールール一覧") {
-                let config = parseCurrentConfig()
-                if config.triggers.isEmpty {
-                    Text("定義されたトリガーがありません")
+                    Text("音声入力の先頭にキーワードを検出し、自動で処理を切り替えます")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .italic()
-                } else {
+                }
+                
+                Divider()
+                
+                // ルール設定ファイル
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("ルール設定ファイル")
+                        .font(.headline)
+                    
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(config.triggers) { rule in
-                            RulePreviewRow(rule: rule)
+                        HStack {
+                            Text("~/.config/gemisper/rules.yaml")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundColor(.secondary)
+                            
+                            Spacer()
+                            
+                            Button("フォルダを開く") {
+                                openRulesDirectory()
+                            }
+                            .buttonStyle(.borderless)
+                            .controlSize(.small)
+                        }
+                        
+                        // YAMLエディタ
+                        ZStack(alignment: .topLeading) {
+                            TextEditor(text: $settingsManager.rulesYAMLContent)
+                                .font(.system(.body, design: .monospaced))
+                                .frame(minHeight: 200, maxHeight: .infinity)
+                                .border(validationBorderColor, width: 1)
+                                .onChange(of: settingsManager.rulesYAMLContent) { newValue in
+                                    validateRulesContent(newValue)
+                                }
+                            
+                            if settingsManager.rulesYAMLContent.isEmpty {
+                                Text("YAML形式でルールを定義...")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                    .padding(.horizontal, 4)
+                                    .padding(.vertical, 8)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                        
+                        // 検証結果
+                        if let error = rulesValidationError {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.vertical, 4)
+                        } else if !settingsManager.rulesYAMLContent.isEmpty {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("有効なYAMLです")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        
+                        HStack {
+                            Button("デフォルトに戻す") {
+                                showRulesResetConfirmation = true
+                            }
+                            .alert("ルールをリセット", isPresented: $showRulesResetConfirmation) {
+                                Button("キャンセル", role: .cancel) {}
+                                Button("リセット", role: .destructive) {
+                                    resetRulesToDefault()
+                                }
+                            } message: {
+                                Text("ルール設定をデフォルトに戻しますか？現在の設定は失われます。")
+                            }
+                            
+                            Spacer()
+                            
+                            Button("保存") {
+                                saveRules()
+                            }
+                            .disabled(!isRulesValid)
+                            .keyboardShortcut("s", modifiers: .command)
                         }
                     }
+                    .padding(.leading, 4)
+                }
+                
+                Divider()
+                
+                // トリガールール一覧
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("トリガールール一覧")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        let config = parseCurrentConfig()
+                        if config.triggers.isEmpty {
+                            Text("定義されたトリガーがありません")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .italic()
+                        } else {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(config.triggers) { rule in
+                                    RulePreviewRow(rule: rule)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
+                
+                Divider()
+                
+                // 使用例
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("使用例")
+                        .font(.headline)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        ExampleRow(
+                            trigger: "コマンド",
+                            input: "ホームディレクトリのファイル一覧を表示",
+                            output: "ls ~"
+                        )
+                        ExampleRow(
+                            trigger: "英語",
+                            input: "Hello, how are you today?",
+                            output: "こんにちは、今日はお元気ですか？"
+                        )
+                        ExampleRow(
+                            trigger: "markdown",
+                            input: "タイトルと箇条書きを含むテキスト",
+                            output: "整形されたMarkdown形式"
+                        )
+                    }
+                    .padding(.leading, 4)
                 }
             }
-            
-            Section("使用例") {
-                VStack(alignment: .leading, spacing: 8) {
-                    ExampleRow(
-                        trigger: "コマンド",
-                        input: "ホームディレクトリのファイル一覧を表示",
-                        output: "ls ~"
-                    )
-                    ExampleRow(
-                        trigger: "英語",
-                        input: "Hello, how are you today?",
-                        output: "こんにちは、今日はお元気ですか？"
-                    )
-                    ExampleRow(
-                        trigger: "markdown",
-                        input: "タイトルと箇条書きを含むテキスト",
-                        output: "整形されたMarkdown形式"
-                    )
-                }
-            }
+            .padding()
         }
-        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     private var validationBorderColor: Color {
