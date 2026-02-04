@@ -149,11 +149,12 @@ class GeminiService {
             return transcribedText
         }
         
-        // ルールに基づくプロンプト生成
+        // ルールに基づくプロンプト生成（カスタムプロンプトも考慮）
         let prompt = RuleEngine.shared.generatePrompt(
             for: ruleResult.action,
             text: ruleResult.cleanedText,
-            parameters: ruleResult.parameters
+            parameters: ruleResult.parameters,
+            customPrompt: ruleResult.matchedRule?.prompt
         )
         
         // ルールに基づいて追加処理
@@ -263,13 +264,18 @@ class GeminiService {
             }
             
             var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            
+
             // カスタム辞書の適用
             result = SettingsManager.shared.applyCustomDictionary(to: result)
-            
+
             // スニペットの展開
             result = SettingsManager.shared.expandSnippets(in: result)
-            
+
+            // 履歴に追加
+            DispatchQueue.main.async {
+                TranscriptionHistoryManager.shared.addItem(text: result)
+            }
+
             return result
         } catch let error as GeminiError {
             throw error
@@ -280,14 +286,25 @@ class GeminiService {
     
     /// デフォルトプロンプトを構築
     private func buildDefaultPrompt(settings: AppSettings) -> String {
-        var prompt = "Transcribe the following audio to text. Remove filler words like \"um\", \"uh\", \"like\", \"you know\". Add appropriate punctuation. Format as clean, readable text."
-        
+        var prompt = """
+        Transcribe the following audio to text.
+
+        CRITICAL RULES:
+        - Output ONLY the transcription itself
+        - DO NOT add any introduction like "Here is the transcription" or "はい、文字起こしはこちらです"
+        - DO NOT add any commentary or explanation
+        - DO NOT wrap the text in quotes
+        - Remove filler words (um, uh, like, えーと, あの)
+        - Add appropriate punctuation
+        - Format as clean, readable text
+        """
+
         if settings.language == "ja" {
-            prompt += " Respond in Japanese."
+            prompt += "\n- Respond in Japanese only"
         } else if settings.language != "auto" {
-            prompt += " Respond in \(settings.language)."
+            prompt += "\n- Respond in \(settings.language) only"
         }
-        
+
         return prompt
     }
     
@@ -297,7 +314,7 @@ class GeminiService {
             // コマンド生成など、追加処理が必要な場合
             if ruleResult.action == .generateCommand {
                 let command = try await generateContent(prompt: prompt)
-                
+
                 // テンプレート適用
                 if let template = ruleResult.template {
                     let values: [String: String] = [
@@ -306,14 +323,15 @@ class GeminiService {
                     ]
                     return RuleEngine.shared.applyTemplate(template, values: values)
                 }
-                
+
                 return command
             }
-            
-            // 翻訳や整形の場合も同様
-            if ruleResult.action == .translate || ruleResult.action == .format {
+
+            // 翻訳、整形、文体変換、要約、展開の場合
+            switch ruleResult.action {
+            case .translate, .format, .rewrite, .summarize, .expand:
                 let processedText = try await generateContent(prompt: prompt)
-                
+
                 // テンプレート適用
                 if let template = ruleResult.template {
                     var values: [String: String] = [:]
@@ -321,17 +339,17 @@ class GeminiService {
                     case .translate:
                         values["original"] = ruleResult.cleanedText
                         values["translated"] = processedText
-                    case .format:
-                        values["content"] = processedText
                     default:
                         values["content"] = processedText
                     }
                     return RuleEngine.shared.applyTemplate(template, values: values)
                 }
-                
+
                 return processedText
+            default:
+                break
             }
-            
+
             return text
         } catch let error as GeminiError {
             throw error
@@ -350,8 +368,147 @@ class GeminiService {
         onUpdate(result)
     }
     
+    // MARK: - Selection Edit Mode
+
+    /// 選択テキストを音声指示に基づいて編集
+    /// - Parameters:
+    ///   - selectedText: 選択されたテキスト
+    ///   - instruction: 音声で指示された編集内容
+    /// - Returns: 編集後のテキスト
+    func processSelectionEdit(selectedText: String, instruction: String) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw GeminiError.noAPIKey
+        }
+
+        let prompt = """
+        Edit the following text according to the instruction.
+
+        CRITICAL RULES:
+        - Output ONLY the edited text
+        - DO NOT add any introduction like "Here is the result" or "編集結果はこちら"
+        - DO NOT add any commentary or explanation
+        - DO NOT wrap the text in quotes
+        - Maintain the original language of the text unless the instruction explicitly requests a different language
+
+        Selected text:
+        \(selectedText)
+
+        Instruction:
+        \(instruction)
+        """
+
+        return try await generateContent(prompt: prompt)
+    }
+
+    /// 選択テキスト編集用の音声を文字起こし（指示として）
+    /// - Parameter audioURL: 音声ファイルのURL
+    /// - Returns: 文字起こしされた指示テキスト
+    func transcribeInstruction(audioURL: URL) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw GeminiError.noAPIKey
+        }
+
+        let audioData: Data
+        do {
+            audioData = try Data(contentsOf: audioURL)
+        } catch {
+            throw GeminiError.encodingError
+        }
+
+        let audioBase64 = audioData.base64EncodedString()
+
+        let prompt = """
+        Transcribe the following audio to text.
+
+        CRITICAL RULES:
+        - Output ONLY the transcription itself
+        - DO NOT add any introduction
+        - DO NOT add any commentary or explanation
+        - This is an instruction for text editing, so preserve the intent clearly
+        - Remove filler words (um, uh, like, えーと, あの)
+        """
+
+        let requestBody: [String: Any] = [
+            "contents": [
+                [
+                    "parts": [
+                        ["text": prompt],
+                        [
+                            "inline_data": [
+                                "mime_type": "audio/mp4",
+                                "data": audioBase64
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            "generationConfig": [
+                "temperature": 0.2,
+                "maxOutputTokens": 1024
+            ]
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
+
+        let urlString = "\(baseURL)/\(modelName):generateContent?key=\(apiKey)"
+        guard let url = URL(string: urlString) else {
+            throw GeminiError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = jsonData
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw GeminiError.invalidResponse
+            }
+
+            if httpResponse.statusCode != 200 {
+                if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let error = errorJson["error"] as? [String: Any],
+                   let message = error["message"] as? String {
+                    throw GeminiError.apiError(message)
+                }
+                throw GeminiError.apiError("HTTP \(httpResponse.statusCode)")
+            }
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let candidates = json["candidates"] as? [[String: Any]],
+                  let firstCandidate = candidates.first,
+                  let content = firstCandidate["content"] as? [String: Any],
+                  let parts = content["parts"] as? [[String: Any]],
+                  let firstPart = parts.first,
+                  let text = firstPart["text"] as? String else {
+                throw GeminiError.invalidResponse
+            }
+
+            // トークン使用量を記録
+            if let usageMetadata = json["usageMetadata"] as? [String: Any],
+               let promptTokenCount = usageMetadata["promptTokenCount"] as? Int,
+               let candidatesTokenCount = usageMetadata["candidatesTokenCount"] as? Int {
+                DispatchQueue.main.async {
+                    SettingsManager.shared.addTokenUsage(
+                        inputTokens: promptTokenCount,
+                        outputTokens: candidatesTokenCount,
+                        modelName: self.modelName
+                    )
+                }
+            }
+
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch let error as GeminiError {
+            throw error
+        } catch {
+            throw GeminiError.networkError(error)
+        }
+    }
+
     // MARK: - Validate API Key
-    
+
     func validateAPIKey() async -> Bool {
         guard !apiKey.isEmpty else { return false }
         

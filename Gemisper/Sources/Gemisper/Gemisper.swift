@@ -15,6 +15,12 @@ class GemisperApplication: NSApplication {
     }
 }
 
+/// 録音モード
+enum RecordingMode {
+    case normal           // 通常の音声入力モード
+    case selectionEdit    // 選択テキスト編集モード
+}
+
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusBarController: StatusBarController?
@@ -23,9 +29,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var overlayWindow: OverlayWindow?
     var geminiService: GeminiService?
     private var recordingTimer: Timer?
-    
+
     // Settings window
     private var settingsWindow: NSWindow?
+
+    // 選択編集モード用
+    private var selectedTextForEdit: String?
+    private var currentRecordingMode: RecordingMode = .normal
     
     static func main() {
         let app = GemisperApplication.shared
@@ -154,12 +164,24 @@ extension AppDelegate: HotkeyDelegate {
 
         // Check microphone permission
         RecordingManager.requestMicrophonePermission { [weak self] granted in
-            DispatchQueue.main.async {
-                if granted {
-                    self?.recordingManager?.startRecording()
-                    self?.overlayWindow?.show()
-                    self?.statusBarController?.updateRecordingState(true)
+            guard granted else { return }
+
+            // 選択テキストを取得（非同期）
+            Task { @MainActor in
+                if let selected = await TextInjector.shared.getSelectedText(), !selected.isEmpty {
+                    self?.selectedTextForEdit = selected
+                    self?.currentRecordingMode = .selectionEdit
+                    print("[AppDelegate] Selection edit mode: \(selected.prefix(50))...")
+                } else {
+                    self?.selectedTextForEdit = nil
+                    self?.currentRecordingMode = .normal
+                    print("[AppDelegate] Normal mode (no selection)")
                 }
+
+                // 録音開始
+                self?.recordingManager?.startRecording()
+                self?.overlayWindow?.show(mode: self?.currentRecordingMode ?? .normal)
+                self?.statusBarController?.updateRecordingState(true)
             }
         }
     }
@@ -210,32 +232,57 @@ extension AppDelegate: HotkeyDelegate {
     
     private func transcribeAudio(url: URL) {
         overlayWindow?.showProcessing()
-        
+
+        // 選択編集モードかどうかをキャプチャ
+        let selectedText = self.selectedTextForEdit
+        let mode = self.currentRecordingMode
+
+        // 状態をリセット（次回の録音に備える）
+        self.selectedTextForEdit = nil
+        self.currentRecordingMode = .normal
+
         Task {
             do {
                 guard let service = geminiService else { return }
-                
-                // まず通常の文字起こしを実行
-                let transcribedText = try await service.transcribe(audioURL: url)
-                
-                // コマンドモードを検出
-                let (isCommand, cleanedText) = service.detectCommandMode(transcribedText: transcribedText)
-                
+
                 let finalText: String
-                if isCommand {
-                    // コマンドモード: zshコマンドを生成
-                    DispatchQueue.main.async { [weak self] in
-                        self?.overlayWindow?.showProcessing()
-                    }
-                    finalText = try await service.generateZshCommand(instruction: cleanedText)
+
+                if mode == .selectionEdit, let selected = selectedText {
+                    // 選択編集モード: 音声を指示として解釈し、選択テキストを編集
+                    print("[AppDelegate] Selection edit mode - processing...")
+
+                    // 音声を指示として文字起こし
+                    let instruction = try await service.transcribeInstruction(audioURL: url)
+                    print("[AppDelegate] Instruction: \(instruction)")
+
+                    // 選択テキストを編集
+                    finalText = try await service.processSelectionEdit(
+                        selectedText: selected,
+                        instruction: instruction
+                    )
+                    print("[AppDelegate] Edited result: \(finalText.prefix(50))...")
                 } else {
-                    // 通常モード: そのまま出力
-                    finalText = transcribedText
+                    // 通常モード: 既存の処理
+                    let transcribedText = try await service.transcribe(audioURL: url)
+
+                    // コマンドモードを検出
+                    let (isCommand, cleanedText) = service.detectCommandMode(transcribedText: transcribedText)
+
+                    if isCommand {
+                        // コマンドモード: zshコマンドを生成
+                        DispatchQueue.main.async { [weak self] in
+                            self?.overlayWindow?.showProcessing()
+                        }
+                        finalText = try await service.generateZshCommand(instruction: cleanedText)
+                    } else {
+                        // 通常モード: そのまま出力
+                        finalText = transcribedText
+                    }
                 }
-                
+
                 DispatchQueue.main.async { [weak self] in
                     self?.overlayWindow?.hide()
-                    
+
                     if !finalText.isEmpty {
                         self?.insertText(finalText)
                     }

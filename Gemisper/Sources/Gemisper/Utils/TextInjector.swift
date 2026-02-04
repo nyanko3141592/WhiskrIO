@@ -7,6 +7,7 @@ class TextInjector {
     static let shared = TextInjector()
 
     // Virtual key codes (amical準拠)
+    private let VK_C: CGKeyCode = 8
     private let VK_V: CGKeyCode = 9
     private let VK_COMMAND: CGKeyCode = 55
 
@@ -15,6 +16,9 @@ class TextInjector {
 
     // ペースト前の遅延（フォーカス復帰待ち）
     private let PRE_PASTE_DELAY_SECONDS: TimeInterval = 0.1
+
+    // コピー後の遅延（クリップボードに反映されるまで待つ）
+    private let COPY_DELAY_SECONDS: TimeInterval = 0.15
 
     // 録音開始前にフォーカスされていたアプリを記録
     private var previousApp: NSRunningApplication?
@@ -159,5 +163,111 @@ class TextInjector {
         pasteboard.clearContents()
         pasteboard.writeObjects(originalItems)
         print("[TextInjector] Original pasteboard content restored (\(originalItems.count) items)")
+    }
+
+    // MARK: - Selection Text Retrieval
+
+    /// 現在選択されているテキストを取得（Cmd+C経由）
+    /// - Returns: 選択テキスト、または選択がない場合はnil
+    func getSelectedText() async -> String? {
+        print("[TextInjector] getSelectedText called")
+
+        let pasteboard = NSPasteboard.general
+
+        // 元のクリップボード内容を保存
+        let originalItems = pasteboard.pasteboardItems?.compactMap { item -> NSPasteboardItem? in
+            let newItem = NSPasteboardItem()
+            var hasData = false
+            for type in item.types {
+                if let data = item.data(forType: type) {
+                    newItem.setData(data, forType: type)
+                    hasData = true
+                }
+            }
+            return hasData ? newItem : nil
+        } ?? []
+        let originalChangeCount = pasteboard.changeCount
+        let originalText = pasteboard.string(forType: .string)
+
+        print("[TextInjector] Original pasteboard: changeCount=\(originalChangeCount), text=\(originalText?.prefix(30) ?? "nil")")
+
+        // クリップボードをクリア（変更検出のため）
+        pasteboard.clearContents()
+        pasteboard.setString("", forType: .string)
+        let clearedChangeCount = pasteboard.changeCount
+
+        // Cmd+Cシミュレート
+        simulateCopy()
+
+        // クリップボードに反映されるまで待機
+        try? await Task.sleep(nanoseconds: UInt64(COPY_DELAY_SECONDS * 1_000_000_000))
+
+        // クリップボードから取得
+        let newChangeCount = pasteboard.changeCount
+        let copiedText = pasteboard.string(forType: .string)
+
+        print("[TextInjector] After copy: changeCount=\(newChangeCount), text=\(copiedText?.prefix(30) ?? "nil")")
+
+        // 変更があったかどうかをチェック
+        let hasSelection: Bool
+        if newChangeCount != clearedChangeCount {
+            // クリップボードが更新された = 何かが選択されていた
+            hasSelection = copiedText != nil && !copiedText!.isEmpty
+        } else {
+            // クリップボードが更新されなかった = 選択なし
+            hasSelection = false
+        }
+
+        // 元のクリップボード内容を復元
+        pasteboard.clearContents()
+        if !originalItems.isEmpty {
+            pasteboard.writeObjects(originalItems)
+            print("[TextInjector] Restored original pasteboard content")
+        } else if let text = originalText {
+            pasteboard.setString(text, forType: .string)
+            print("[TextInjector] Restored original text")
+        }
+
+        if hasSelection {
+            print("[TextInjector] Selected text found: \(copiedText?.prefix(50) ?? "")...")
+            return copiedText
+        } else {
+            print("[TextInjector] No selection detected")
+            return nil
+        }
+    }
+
+    /// Cmd+Cキーイベントをシミュレートしてコピー
+    private func simulateCopy() {
+        print("[TextInjector] simulateCopy called")
+
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            print("[TextInjector] ERROR: Failed to create CGEventSource")
+            return
+        }
+
+        // イベント作成
+        guard let cmdDown = CGEvent(keyboardEventSource: source, virtualKey: VK_COMMAND, keyDown: true),
+              let cDown = CGEvent(keyboardEventSource: source, virtualKey: VK_C, keyDown: true),
+              let cUp = CGEvent(keyboardEventSource: source, virtualKey: VK_C, keyDown: false),
+              let cmdUp = CGEvent(keyboardEventSource: source, virtualKey: VK_COMMAND, keyDown: false) else {
+            print("[TextInjector] ERROR: Failed to create CGEvent")
+            return
+        }
+
+        // フラグ設定
+        cmdDown.flags = .maskCommand
+        cDown.flags = .maskCommand
+        cUp.flags = .maskCommand
+
+        let tapLocation: CGEventTapLocation = .cgSessionEventTap
+
+        // イベント送信
+        cmdDown.post(tap: tapLocation)
+        cDown.post(tap: tapLocation)
+        cUp.post(tap: tapLocation)
+        cmdUp.post(tap: tapLocation)
+
+        print("[TextInjector] Copy events posted successfully")
     }
 }
