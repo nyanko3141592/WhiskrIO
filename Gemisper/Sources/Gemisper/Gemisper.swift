@@ -37,6 +37,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Load settings
         SettingsManager.shared.loadSettings()
+
+        // Load transcription history
+        TranscriptionHistoryManager.shared.loadHistory()
         
         // Set initial app language
         LocalizationManager.shared.setLanguage(SettingsManager.shared.settings.appLanguage)
@@ -51,6 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Create overlay window
         overlayWindow = OverlayWindow()
+        overlayWindow?.recordingManagerRef = recordingManager
         
         // Register hotkey
         hotkeyManager?.registerHotkey()
@@ -111,6 +115,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 window.title = L10n.Common.settings
                 window.contentView = NSHostingView(rootView: contentView)
                 window.isReleasedWhenClosed = false
+                window.toolbarStyle = .preference
                 window.center()
                 
                 self?.settingsWindow = window
@@ -137,13 +142,16 @@ extension AppDelegate: HotkeyDelegate {
     func recordingStarted() {
         // Push to Talk: key pressed
         guard let recordingManager = recordingManager, !recordingManager.isRecording else { return }
-        
+
         // Check if API key is set
         guard !SettingsManager.shared.settings.apiKey.isEmpty else {
             showAPIKeyAlert()
             return
         }
-        
+
+        // 録音開始前に現在フォーカスされているアプリを保存
+        TextInjector.shared.saveFocusedApp()
+
         // Check microphone permission
         RecordingManager.requestMicrophonePermission { [weak self] granted in
             DispatchQueue.main.async {
@@ -169,7 +177,10 @@ extension AppDelegate: HotkeyDelegate {
             showAPIKeyAlert()
             return
         }
-        
+
+        // 録音開始前に現在フォーカスされているアプリを保存
+        TextInjector.shared.saveFocusedApp()
+
         // Check microphone permission
         RecordingManager.requestMicrophonePermission { [weak self] granted in
             DispatchQueue.main.async {
