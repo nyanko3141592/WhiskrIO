@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Gemisper/Resources/AppIcon.iconset/icon_256x256.png" alt="WhiskrIO" width="128" height="128">
+  <img src="WhiskrIO/Resources/AppIcon.iconset/icon_256x256.png" alt="WhiskrIO" width="128" height="128">
 </p>
 
 # WhiskrIO
@@ -81,7 +81,7 @@ Gemini API を使用した macOS 用の音声入力アプリ。猫のひげ（Wh
 ### 1. ビルドからインストール
 
 ```bash
-cd Gemisper
+cd WhiskrIO
 ./build.sh
 
 # アプリケーションへ移動
@@ -194,7 +194,7 @@ templates:
 ## アーキテクチャ
 
 ```
-Gemisper/
+WhiskrIO/
 ├── Sources/WhiskrIO/
 │   ├── WhiskrIO.swift              # アプリケーションエントリーポイント
 │   ├── Models/

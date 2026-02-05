@@ -1,8 +1,8 @@
-# Gemisper - Agent Documentation
+# WhiskrIO - Agent Documentation
 
 ## プロジェクト概要
 
-Gemisper は Gemini API を使用した macOS 用音声入力アプリです。
+WhiskrIO は Gemini API を使用した macOS 用音声入力アプリです。
 WhisprFlow の機能を再現しつつ、より柔軟なカスタマイズを可能にしています。
 
 ## アーキテクチャ
@@ -10,9 +10,9 @@ WhisprFlow の機能を再現しつつ、より柔軟なカスタマイズを可
 ### ディレクトリ構造
 
 ```
-Gemisper/
-├── Sources/Gemisper/
-│   ├── Gemisper.swift              # AppDelegate + アプリエントリーポイント
+WhiskrIO/
+├── Sources/WhiskrIO/
+│   ├── WhiskrIO.swift              # AppDelegate + アプリエントリーポイント
 │   ├── Models/
 │   │   ├── Settings.swift          # アプリ設定（Keychain対応）
 │   │   ├── GeminiModel.swift       # Geminiモデル定義（2.5系）
@@ -97,7 +97,7 @@ KeychainManager.shared.saveAPIKey(key)
 ## ビルド
 
 ```bash
-cd Gemisper/Gemisper
+cd WhiskrIO/WhiskrIO
 ./build.sh
 ```
 
