@@ -204,15 +204,15 @@ class CatFaceView: NSView {
     }
 
     private func drawWhiskers(context: CGContext, centerX: CGFloat, centerY: CGFloat, isLeft: Bool, avgLevel: CGFloat) {
-        let whiskerCount = 3
-        let whiskerSpacing: CGFloat = 3.5
+        let whiskerCount = 2
+        let whiskerSpacing: CGFloat = 5
         let baseLength: CGFloat = 37
         let whiskerStartX = isLeft ? centerX - 14 : centerX + 14
 
         for i in 0..<whiskerCount {
-            // 髭の垂直位置（上・中・下）
-            let verticalOffset = CGFloat(i - 1) * whiskerSpacing
-            let startY = centerY + verticalOffset - 2
+            // 髭の垂直位置（上・下）
+            let verticalOffset = CGFloat(i) * whiskerSpacing - whiskerSpacing / 2
+            let startY = centerY + verticalOffset - 1
 
             // 音量データからこの髭の波形を取得
             let levelIndex = isLeft ? (whiskerCount - 1 - i) : (maxLevels - whiskerCount + i)
@@ -221,10 +221,11 @@ class CatFaceView: NSView {
             // 髭の長さ（音量で変化）
             let whiskerLength = baseLength + level * 10
 
-            // 髭の角度（外側に広がる + 波打ち）
+            // 髭の角度（上下10度ずつ傾ける + 音量があるときだけ波打ち）
             let baseAngle: CGFloat = isLeft ? CGFloat.pi : 0
-            let spreadAngle = CGFloat(i - 1) * 0.12 * (isLeft ? -1 : 1)
-            let waveAngle = sin(animationPhase + CGFloat(i) * 0.8) * 0.08 * (0.3 + level)
+            let degrees10: CGFloat = 10 * .pi / 180  // 10度をラジアンに
+            let spreadAngle = (i == 0 ? -degrees10 : degrees10) * (isLeft ? -1 : 1)
+            let waveAngle = level > 0.05 ? sin(animationPhase + CGFloat(i) * 0.8) * 0.1 * level : 0
 
             let angle = baseAngle + spreadAngle + waveAngle
 
@@ -232,8 +233,8 @@ class CatFaceView: NSView {
             let endX = whiskerStartX + cos(angle) * whiskerLength
             let endY = startY + sin(angle) * whiskerLength * 0.25
 
-            // 波打つ制御点
-            let waveOffset = sin(animationPhase * 1.5 + CGFloat(i) * 1.2) * (1.5 + level * 4)
+            // 波打つ制御点（音量があるときだけ）
+            let waveOffset = level > 0.05 ? sin(animationPhase * 1.5 + CGFloat(i) * 1.2) * level * 5 : 0
             let ctrlX = (whiskerStartX + endX) / 2
             let ctrlY = startY + waveOffset
 
@@ -267,8 +268,8 @@ class CatFaceView: NSView {
     }
 
     private func drawCatFaceSVG(context: CGContext, centerX: CGFloat, centerY: CGFloat, avgLevel: CGFloat) {
-        // ひくひくアニメーション（X軸のみ、±5%）
-        let pulseX = 1.0 + sin(whiskerPadPulse) * 0.05
+        // 固定サイズ（アニメーションなし）
+        let pulseX: CGFloat = 1.0
 
         // Y軸方向にはみ出ないようにスケール決定
         let maxHeight = bounds.height
