@@ -56,6 +56,44 @@ extension Array where Element == PushToTalkKey {
     }
 }
 
+// MARK: - Speech Language
+enum SpeechLanguage: String, Codable, CaseIterable {
+    case auto = "auto"
+    case japanese = "ja"
+    case english = "en"
+    case chinese = "zh"
+    case korean = "ko"
+    case spanish = "es"
+    case french = "fr"
+    case german = "de"
+
+    var displayName: String {
+        switch self {
+        case .auto: return "自動検出"
+        case .japanese: return "日本語"
+        case .english: return "English"
+        case .chinese: return "中文"
+        case .korean: return "한국어"
+        case .spanish: return "Español"
+        case .french: return "Français"
+        case .german: return "Deutsch"
+        }
+    }
+
+    var promptInstruction: String? {
+        switch self {
+        case .auto: return nil
+        case .japanese: return "The audio is in Japanese. Transcribe in Japanese only. Output must be in Japanese."
+        case .english: return "The audio is in English. Transcribe in English only. Output must be in English."
+        case .chinese: return "The audio is in Chinese. Transcribe in Chinese only. Output must be in Chinese."
+        case .korean: return "The audio is in Korean. Transcribe in Korean only. Output must be in Korean."
+        case .spanish: return "The audio is in Spanish. Transcribe in Spanish only. Output must be in Spanish."
+        case .french: return "The audio is in French. Transcribe in French only. Output must be in French."
+        case .german: return "The audio is in German. Transcribe in German only. Output must be in German."
+        }
+    }
+}
+
 // MARK: - Transcription Style
 enum TranscriptionStyle: String, Codable, CaseIterable {
     case natural = "natural"
@@ -133,7 +171,7 @@ struct AppSettings: Codable, Equatable {
     var hotkeyKeyCode: Int
     var removeFillerWords: Bool
     var addPunctuation: Bool
-    var language: String
+    var speechLanguage: SpeechLanguage
     var style: TranscriptionStyle
     var showOverlay: Bool
     var playSoundEffects: Bool
@@ -151,7 +189,7 @@ struct AppSettings: Codable, Equatable {
         hotkeyKeyCode: 3, // F3
         removeFillerWords: true,  // 常にtrue（プロンプトで制御）
         addPunctuation: true,     // 常にtrue（プロンプトで制御）
-        language: "auto",         // 自動検出
+        speechLanguage: .japanese, // デフォルト: 日本語
         style: .natural,          // プロンプトで制御
         showOverlay: true,        // 常にtrue（録音インジケーター必須）
         playSoundEffects: true,

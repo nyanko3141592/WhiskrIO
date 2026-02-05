@@ -190,6 +190,30 @@ struct SettingsView: View {
     private var inputSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // 言語設定
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("言語設定")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("文字起こし言語", selection: $settingsManager.settings.speechLanguage) {
+                            ForEach(SpeechLanguage.allCases, id: \.self) { language in
+                                Text(language.displayName).tag(language)
+                            }
+                        }
+                        .onChange(of: settingsManager.settings.speechLanguage) { _ in
+                            settingsManager.saveSettings()
+                        }
+
+                        Text("音声入力の言語を指定します。「自動検出」では英語と誤認識されることがあります。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
                 // 録音時間の上限
                 VStack(alignment: .leading, spacing: 12) {
                     Text("録音時間の上限")

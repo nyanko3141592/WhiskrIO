@@ -313,10 +313,9 @@ class GeminiService {
         - Format as clean, readable text
         """
 
-        if settings.language == "ja" {
-            prompt += "\n- Respond in Japanese only"
-        } else if settings.language != "auto" {
-            prompt += "\n- Respond in \(settings.language) only"
+        // 言語設定を追加
+        if let languageInstruction = settings.speechLanguage.promptInstruction {
+            prompt += "\n\nIMPORTANT: \(languageInstruction)"
         }
 
         return prompt
