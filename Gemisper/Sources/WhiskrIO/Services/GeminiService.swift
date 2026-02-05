@@ -31,7 +31,21 @@ class GeminiService {
     private var modelName: String {
         SettingsManager.shared.settings.selectedModel.rawValue
     }
-    
+
+    /// デフォルトの文字起こしプロンプト
+    static let defaultTranscriptionPrompt = """
+        Transcribe the following audio to text.
+
+        CRITICAL RULES:
+        - Output ONLY the transcription itself
+        - DO NOT add any introduction like "Here is the transcription" or "はい、文字起こしはこちらです"
+        - DO NOT add any commentary or explanation
+        - DO NOT wrap the text in quotes
+        - Remove filler words (um, uh, like, えーと, あの)
+        - Add appropriate punctuation
+        - Format as clean, readable text
+        """
+
     // MARK: - Command Mode Detection
     
     func detectCommandMode(transcribedText: String) -> (isCommand: Bool, cleanedText: String) {

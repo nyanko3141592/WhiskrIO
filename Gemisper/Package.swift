@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Gemisper",
+    name: "WhiskrIO",
     platforms: [.macOS(.v13)],
     products: [
         .executable(
-            name: "Gemisper",
-            targets: ["Gemisper"]
+            name: "WhiskrIO",
+            targets: ["WhiskrIO"]
         )
     ],
     dependencies: [
@@ -15,7 +15,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Gemisper",
+            name: "WhiskrIO",
             dependencies: [
                 .product(name: "Yams", package: "yams"),
             ],

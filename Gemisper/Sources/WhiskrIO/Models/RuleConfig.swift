@@ -28,7 +28,10 @@ struct RuleConfig: Codable {
         templates: [
             "command": "# {description}\n{command}",
             "translate": "【原文】\n{original}\n\n【訳】\n{translated}",
-            "format": "{content}"
+            "format": "{content}",
+            "rewrite": "{content}",
+            "summarize": "{content}",
+            "expand": "{content}"
         ]
     )
 }
@@ -41,29 +44,33 @@ struct TriggerRule: Codable, Identifiable, Equatable {
     var keywords: [String]
     var action: ActionType
     var parameters: [String: String]
-    
+    var prompt: String?  // カスタムプロンプト用
+
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case keywords
         case action
         case parameters
+        case prompt
     }
-    
+
     init(
         id: UUID = UUID(),
         name: String,
         keywords: [String],
         action: ActionType,
-        parameters: [String: String] = [:]
+        parameters: [String: String] = [:],
+        prompt: String? = nil
     ) {
         self.id = id
         self.name = name
         self.keywords = keywords
         self.action = action
         self.parameters = parameters
+        self.prompt = prompt
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
@@ -72,8 +79,9 @@ struct TriggerRule: Codable, Identifiable, Equatable {
         let actionString = try container.decode(String.self, forKey: .action)
         self.action = ActionType(rawValue: actionString) ?? .custom
         self.parameters = try container.decodeIfPresent([String: String].self, forKey: .parameters) ?? [:]
+        self.prompt = try container.decodeIfPresent(String.self, forKey: .prompt)
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -83,6 +91,9 @@ struct TriggerRule: Codable, Identifiable, Equatable {
         if !parameters.isEmpty {
             try container.encode(parameters, forKey: .parameters)
         }
+        if let prompt = prompt {
+            try container.encode(prompt, forKey: .prompt)
+        }
     }
     
     enum ActionType: String, Codable, CaseIterable {
@@ -90,7 +101,10 @@ struct TriggerRule: Codable, Identifiable, Equatable {
         case translate = "translate"
         case format = "format"
         case custom = "custom"
-        
+        case rewrite = "rewrite"        // 文体変換
+        case summarize = "summarize"    // 要約
+        case expand = "expand"          // 展開・詳細化
+
         var displayName: String {
             switch self {
             case .generateCommand:
@@ -101,9 +115,15 @@ struct TriggerRule: Codable, Identifiable, Equatable {
                 return "整形"
             case .custom:
                 return "カスタム"
+            case .rewrite:
+                return "文体変換"
+            case .summarize:
+                return "要約"
+            case .expand:
+                return "展開"
             }
         }
-        
+
         var icon: String {
             switch self {
             case .generateCommand:
@@ -114,6 +134,12 @@ struct TriggerRule: Codable, Identifiable, Equatable {
                 return "textformat"
             case .custom:
                 return "gearshape"
+            case .rewrite:
+                return "pencil.line"
+            case .summarize:
+                return "text.justify.left"
+            case .expand:
+                return "text.append"
             }
         }
     }
@@ -154,6 +180,29 @@ struct TriggerRule: Codable, Identifiable, Equatable {
             keywords: ["コマンド", "command", "cmd"],
             action: .generateCommand,
             parameters: ["shell": "zsh"]
+        ),
+        TriggerRule(
+            name: "ビジネスメール",
+            keywords: ["ビジネスメール", "ビジネスです", "business email"],
+            action: .rewrite,
+            parameters: ["style": "business_email"]
+        ),
+        TriggerRule(
+            name: "カジュアル",
+            keywords: ["カジュアル", "カジュアルで", "casual"],
+            action: .rewrite,
+            parameters: ["style": "casual"]
+        ),
+        TriggerRule(
+            name: "要約",
+            keywords: ["要約", "まとめて", "summarize"],
+            action: .summarize
+        ),
+        TriggerRule(
+            name: "箇条書き",
+            keywords: ["箇条書き", "リストで", "bullet"],
+            action: .format,
+            parameters: ["format": "bullet"]
         ),
         TriggerRule(
             name: "日本語訳",
@@ -259,6 +308,7 @@ version: "1.0"
 
 # トリガールール
 triggers:
+  # コマンド生成
   - name: "zshコマンド"
     keywords:
       - "コマンド"
@@ -268,6 +318,45 @@ triggers:
     parameters:
       shell: "zsh"
 
+  # ビジネスメール（文体変換）
+  - name: "ビジネスメール"
+    keywords:
+      - "ビジネスメール"
+      - "ビジネスです"
+      - "business email"
+    action: "rewrite"
+    parameters:
+      style: "business_email"
+
+  # カジュアル（文体変換）
+  - name: "カジュアル"
+    keywords:
+      - "カジュアル"
+      - "カジュアルで"
+      - "casual"
+    action: "rewrite"
+    parameters:
+      style: "casual"
+
+  # 要約
+  - name: "要約"
+    keywords:
+      - "要約"
+      - "まとめて"
+      - "summarize"
+    action: "summarize"
+
+  # 箇条書き
+  - name: "箇条書き"
+    keywords:
+      - "箇条書き"
+      - "リストで"
+      - "bullet"
+    action: "format"
+    parameters:
+      format: "bullet"
+
+  # 翻訳
   - name: "日本語訳"
     keywords:
       - "英語"
@@ -289,6 +378,7 @@ triggers:
       target_lang: "en"
       source_lang: "ja"
 
+  # 整形
   - name: "Markdown整形"
     keywords:
       - "markdown"
@@ -325,6 +415,10 @@ templates:
     【訳】
     {translated}
   format: |
+    {content}
+  rewrite: |
+    {content}
+  summarize: |
     {content}
 """
 }

@@ -16,10 +16,11 @@ class HotkeyManager {
     private static var sharedManager: HotkeyManager?
     
     // Push to Talk
-    private var keyDownMonitor: Any?
-    private var keyUpMonitor: Any?
-    private var flagsChangedMonitor: Any?
+    private var globalFlagsMonitor: Any?
+    private var localFlagsMonitor: Any?
     private var isPushToTalkKeyPressed = false
+    private var lastFlagsChangeTime: Date?
+    private var safetyTimer: Timer?
     
     init(delegate: HotkeyDelegate) {
         self.delegate = delegate
@@ -55,42 +56,54 @@ class HotkeyManager {
     // MARK: - Push to Talk
     
     private func setupPushToTalkMonitoring() {
-        // キーダウン監視
-        keyDownMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event)
+        // グローバル監視（アプリが非アクティブ時）
+        globalFlagsMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.handleFlagsChanged(event, source: "global")
         }
-        
-        // キーアップ監視（ローカルイベントも必要）
-        flagsChangedMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event)
+
+        // ローカル監視（アプリがアクティブ時）
+        localFlagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.handleFlagsChanged(event, source: "local")
             return event
+        }
+
+        // 安全タイマー: キーリリースイベントが失われた場合の保険
+        // 2秒ごとに現在のモディファイアキー状態をチェック
+        // イベントが正常に受信されている間は介入しない（checkModifierKeysState内で判定）
+        safetyTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.checkModifierKeysState()
         }
     }
     
     private func removePushToTalkMonitoring() {
-        if let monitor = keyDownMonitor {
+        if let monitor = globalFlagsMonitor {
             NSEvent.removeMonitor(monitor)
-            keyDownMonitor = nil
+            globalFlagsMonitor = nil
         }
-        if let monitor = flagsChangedMonitor {
+        if let monitor = localFlagsMonitor {
             NSEvent.removeMonitor(monitor)
-            flagsChangedMonitor = nil
+            localFlagsMonitor = nil
         }
+        safetyTimer?.invalidate()
+        safetyTimer = nil
+        isPushToTalkKeyPressed = false
     }
     
-    private func handleFlagsChanged(_ event: NSEvent) {
+    private func handleFlagsChanged(_ event: NSEvent, source: String) {
+        lastFlagsChangeTime = Date()
+
         let pushToTalkKeys = SettingsManager.shared.settings.pushToTalkKeys
         let targetFlags = pushToTalkKeys.combinedModifierFlags
-        
+
         let currentFlags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        
+
         // すべてのターゲットキーが押されているかチェック
         let isKeyPressed = targetFlags.isSubset(of: currentFlags)
-        
+
         // 状態が変化した場合のみ処理
         if isKeyPressed != isPushToTalkKeyPressed {
             isPushToTalkKeyPressed = isKeyPressed
-            
+
             if isKeyPressed {
                 // キーが押された - 録音開始
                 DispatchQueue.main.async { [weak self] in
@@ -101,6 +114,37 @@ class HotkeyManager {
                 DispatchQueue.main.async { [weak self] in
                     self?.delegate?.recordingStopped()
                 }
+            }
+        }
+    }
+
+    /// 安全タイマーからの定期チェック
+    /// キーリリースイベントが失われた場合のフェイルセーフ
+    private func checkModifierKeysState() {
+        guard isPushToTalkKeyPressed else { return }
+
+        // 最後のフラグ変更から十分な時間が経過していない場合はスキップ
+        // （イベントが正常に受信されている間は介入しない）
+        if let lastChange = lastFlagsChangeTime,
+           Date().timeIntervalSince(lastChange) < 1.0 {
+            return
+        }
+
+        // 現在のモディファイアキー状態を直接取得
+        // 注意: メインスレッドで取得することが重要
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.isPushToTalkKeyPressed else { return }
+
+            let currentFlags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let pushToTalkKeys = SettingsManager.shared.settings.pushToTalkKeys
+            let targetFlags = pushToTalkKeys.combinedModifierFlags
+
+            let isKeyPressed = targetFlags.isSubset(of: currentFlags)
+
+            // キーが離されているのに、まだ録音中の場合は停止
+            if !isKeyPressed && self.isPushToTalkKeyPressed {
+                self.isPushToTalkKeyPressed = false
+                self.delegate?.recordingStopped()
             }
         }
     }

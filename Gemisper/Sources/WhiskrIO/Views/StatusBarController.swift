@@ -20,13 +20,9 @@ class StatusBarController {
             return
         }
         
-        // Use system symbol or fallback to text
-        if let image = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "Gemisper") {
-            button.image = image
-            button.imagePosition = .imageLeft
-        } else {
-            button.title = "🎙️"
-        }
+        // Use cat emoji for WhiskrIO cat mode
+        button.title = "🐱"
+        button.font = NSFont.systemFont(ofSize: 14)
         
         button.action = #selector(toggleMenu)
         button.target = self
@@ -87,16 +83,16 @@ class StatusBarController {
         
         // バージョン情報
         let versionItem = NSMenuItem(
-            title: "Gemisper v1.0.0",
+            title: "WhiskrIO v1.0.0",
             action: nil,
             keyEquivalent: ""
         )
         versionItem.isEnabled = false
         menu.addItem(versionItem)
-        
+
         // 終了
         let quitItem = NSMenuItem(
-            title: "Gemisperを終了",
+            title: "WhiskrIOを終了",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
@@ -194,16 +190,13 @@ class StatusBarController {
             guard let self = self, let button = self.statusItem.button else { return }
             
             if isRecording {
-                // Show recording view in menu bar
-                button.image = nil
-                button.title = "● \(String(format: "%02d:%02d", Int(duration) / 60, Int(duration) % 60))"
+                // Show recording view in menu bar with cat eye
+                button.title = "😺 \(String(format: "%02d:%02d", Int(duration) / 60, Int(duration) % 60))"
                 button.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .bold)
-                button.contentTintColor = .red
             } else {
-                // Back to normal
-                button.image = NSImage(systemSymbolName: "mic", accessibilityDescription: "Gemisper")
-                button.title = ""
-                button.contentTintColor = nil
+                // Back to normal cat
+                button.title = "🐱"
+                button.font = NSFont.systemFont(ofSize: 14)
             }
         }
     }
@@ -212,7 +205,7 @@ class StatusBarController {
         DispatchQueue.main.async { [weak self] in
             guard let self = self, let button = self.statusItem.button else { return }
             if self.recordingView != nil {
-                button.title = "● \(String(format: "%02d:%02d", Int(duration) / 60, Int(duration) % 60))"
+                button.title = "😺 \(String(format: "%02d:%02d", Int(duration) / 60, Int(duration) % 60))"
             }
         }
     }

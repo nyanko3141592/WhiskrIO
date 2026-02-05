@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - App Entry Point
 // LSUIElement app doesn't use WindowGroup, AppDelegate manages everything
 // This prevents unnecessary windows from being displayed
-class GemisperApplication: NSApplication {
+class WhiskrIOApplication: NSApplication {
     override init() {
         super.init()
         // Hide app from dock
@@ -38,7 +38,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentRecordingMode: RecordingMode = .normal
     
     static func main() {
-        let app = GemisperApplication.shared
+        let app = WhiskrIOApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
         app.run()

@@ -148,11 +148,11 @@ struct AppSettings: Codable, Equatable {
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
         hotkeyKeyCode: 3, // F3
-        removeFillerWords: true,
-        addPunctuation: true,
-        language: "ja",
-        style: .natural,
-        showOverlay: true,
+        removeFillerWords: true,  // 常にtrue（プロンプトで制御）
+        addPunctuation: true,     // 常にtrue（プロンプトで制御）
+        language: "auto",         // 自動検出
+        style: .natural,          // プロンプトで制御
+        showOverlay: true,        // 常にtrue（録音インジケーター必須）
         playSoundEffects: true,
         pushToTalkMode: true,
         pushToTalkKeys: [.option, .command], // デフォルト: ⌥ + ⌘
@@ -176,10 +176,10 @@ class SettingsManager: ObservableObject {
     @Published var rulesFilePath: String? = nil
     @Published var rulesYAMLContent: String = ""  // YAML形式のルール
     
-    private let settingsKey = "com.gemisper.settings"
-    private let dictionaryKey = "com.gemisper.dictionary"
-    private let snippetsKey = "com.gemisper.snippets"
-    private let tokenUsageKey = "com.gemisper.tokenusage"
+    private let settingsKey = "io.whiskr.settings"
+    private let dictionaryKey = "io.whiskr.dictionary"
+    private let snippetsKey = "io.whiskr.snippets"
+    private let tokenUsageKey = "io.whiskr.tokenusage"
     
     private init() {}
     
@@ -345,9 +345,9 @@ class SettingsManager: ObservableObject {
         let fileManager = FileManager.default
         let homeDirectory = fileManager.homeDirectoryForCurrentUser
         
-        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.md")
-        let legacyPath = homeDirectory.appendingPathComponent(".gemisper-rules.md")
-        
+        let configPath = homeDirectory.appendingPathComponent(".config/whiskrio/rules.md")
+        let legacyPath = homeDirectory.appendingPathComponent(".whiskrio-rules.md")
+
         if fileManager.fileExists(atPath: configPath.path) {
             rulesFilePath = configPath.path
             do {
@@ -369,13 +369,13 @@ class SettingsManager: ObservableObject {
             rulesFilePath = nil
         }
     }
-    
+
     func getRulesFilePath() -> String? {
         let fileManager = FileManager.default
         let homeDirectory = fileManager.homeDirectoryForCurrentUser
-        
-        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.md")
-        let legacyPath = homeDirectory.appendingPathComponent(".gemisper-rules.md")
+
+        let configPath = homeDirectory.appendingPathComponent(".config/whiskrio/rules.md")
+        let legacyPath = homeDirectory.appendingPathComponent(".whiskrio-rules.md")
         
         if fileManager.fileExists(atPath: configPath.path) {
             return configPath.path
@@ -401,9 +401,9 @@ class SettingsManager: ObservableObject {
     func loadYAMLRules() {
         let fileManager = FileManager.default
         let homeDirectory = fileManager.homeDirectoryForCurrentUser
-        
-        let configPath = homeDirectory.appendingPathComponent(".config/gemisper/rules.yaml")
-        
+
+        let configPath = homeDirectory.appendingPathComponent(".config/whiskrio/rules.yaml")
+
         if fileManager.fileExists(atPath: configPath.path) {
             do {
                 rulesYAMLContent = try String(contentsOf: configPath, encoding: .utf8)
@@ -416,29 +416,29 @@ class SettingsManager: ObservableObject {
             rulesYAMLContent = RuleConfig.defaultYAML
         }
     }
-    
+
     func saveYAMLRules(_ content: String) throws {
         let fileManager = FileManager.default
         let homeDirectory = fileManager.homeDirectoryForCurrentUser
-        let configDir = homeDirectory.appendingPathComponent(".config/gemisper")
+        let configDir = homeDirectory.appendingPathComponent(".config/whiskrio")
         let configPath = configDir.appendingPathComponent("rules.yaml")
-        
+
         // ディレクトリが存在しない場合は作成
         if !fileManager.fileExists(atPath: configDir.path) {
             try fileManager.createDirectory(at: configDir, withIntermediateDirectories: true, attributes: nil)
         }
-        
+
         try content.write(to: configPath, atomically: true, encoding: .utf8)
         rulesYAMLContent = content
-        
+
         // RuleEngineの設定も更新
         RuleEngine.shared.loadConfig()
     }
-    
+
     func resetYAMLRulesToDefault() throws {
         try saveYAMLRules(RuleConfig.defaultYAML)
     }
-    
+
     func validateYAMLRules(_ content: String) -> (isValid: Bool, error: String?) {
         do {
             _ = try RuleConfig.fromYAML(content)
@@ -447,10 +447,10 @@ class SettingsManager: ObservableObject {
             return (false, error.localizedDescription)
         }
     }
-    
+
     func getYAMLRulesFilePath() -> String {
         let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-        return homeDirectory.appendingPathComponent(".config/gemisper/rules.yaml").path
+        return homeDirectory.appendingPathComponent(".config/whiskrio/rules.yaml").path
     }
 }
 

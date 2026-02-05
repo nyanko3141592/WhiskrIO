@@ -79,16 +79,9 @@ struct DictionaryView: View {
             .padding()
             
             // List
-            List {
-                Section {
-                    ForEach(filteredEntries) { entry in
-                        DictionaryEntryRow(entry: entry) {
-                            if let index = settingsManager.customDictionary.firstIndex(where: { $0.id == entry.id }) {
-                                settingsManager.removeDictionaryEntry(at: index)
-                            }
-                        }
-                    }
-                } header: {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
                     HStack {
                         Text(L10n.Dictionary.from)
                             .frame(width: 200, alignment: .leading)
@@ -104,8 +97,25 @@ struct DictionaryView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    // Entries
+                    ForEach(filteredEntries) { entry in
+                        DictionaryEntryRow(entry: entry) {
+                            if let index = settingsManager.customDictionary.firstIndex(where: { $0.id == entry.id }) {
+                                settingsManager.removeDictionaryEntry(at: index)
+                            }
+                        }
+                        .padding(.horizontal)
+
+                        Divider()
+                    }
                 }
             }
+            .background(Color(NSColor.textBackgroundColor))
             
             Divider()
             
@@ -268,16 +278,9 @@ struct SnippetsView: View {
             .padding()
             
             // List
-            List {
-                Section {
-                    ForEach(filteredSnippets) { snippet in
-                        SnippetRow(snippet: snippet) {
-                            if let index = settingsManager.snippets.firstIndex(where: { $0.id == snippet.id }) {
-                                settingsManager.removeSnippet(at: index)
-                            }
-                        }
-                    }
-                } header: {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
                     HStack {
                         Text(L10n.Snippets.trigger)
                             .frame(width: 150, alignment: .leading)
@@ -290,8 +293,25 @@ struct SnippetsView: View {
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    // Snippets
+                    ForEach(filteredSnippets) { snippet in
+                        SnippetRow(snippet: snippet) {
+                            if let index = settingsManager.snippets.firstIndex(where: { $0.id == snippet.id }) {
+                                settingsManager.removeSnippet(at: index)
+                            }
+                        }
+                        .padding(.horizontal)
+
+                        Divider()
+                    }
                 }
             }
+            .background(Color(NSColor.textBackgroundColor))
             
             Divider()
             

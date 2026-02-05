@@ -4,8 +4,8 @@ import Security
 class KeychainManager {
     static let shared = KeychainManager()
     
-    private let apiKeyAccount = "com.gemisper.apikey"
-    private let service = "com.gemisper"
+    private let apiKeyAccount = "io.whiskr.apikey"
+    private let service = "io.whiskr"
     
     private init() {}
     

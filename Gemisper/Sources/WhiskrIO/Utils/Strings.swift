@@ -231,7 +231,7 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "common.add": "Add",
         "common.close": "Close",
         "common.settings": "Settings...",
-        "common.quit": "Quit Gemisper",
+        "common.quit": "Quit WhiskrIO",
         "common.version": "Version",
         "common.build": "Build",
         "common.search": "Search",
@@ -249,7 +249,7 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "menubar.monthly_total": "  Monthly: %@ tokens",
         "menubar.monthly_estimated": "  Monthly Est: $%.4f (¥%.2f)",
         "menubar.no_data": "  Recent: No data",
-        "menubar.quit_app": "Quit Gemisper",
+        "menubar.quit_app": "Quit WhiskrIO",
         
         // Settings Tabs
         "settings_tab.general": "General",
@@ -368,7 +368,7 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "common.add": "追加",
         "common.close": "閉じる",
         "common.settings": "設定...",
-        "common.quit": "Gemisperを終了",
+        "common.quit": "WhiskrIOを終了",
         "common.version": "バージョン",
         "common.build": "ビルド",
         "common.search": "検索",
@@ -386,7 +386,7 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "menubar.monthly_total": "  今月の累計: %@ tokens",
         "menubar.monthly_estimated": "  今月の概算: $%.4f (¥%.2f)",
         "menubar.no_data": "  直近: データなし",
-        "menubar.quit_app": "Gemisperを終了",
+        "menubar.quit_app": "WhiskrIOを終了",
         
         // Settings Tabs
         "settings_tab.general": "一般",

@@ -20,7 +20,7 @@ class RuleEngine {
     
     private var configDirectory: URL {
         let home = fileManager.homeDirectoryForCurrentUser
-        return home.appendingPathComponent(".config/gemisper", isDirectory: true)
+        return home.appendingPathComponent(".config/whiskrio", isDirectory: true)
     }
     
     private var configFileURL: URL {
@@ -44,7 +44,7 @@ class RuleEngine {
         }
         
         // 古い場所（legacy）をチェック
-        let legacyURL = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".gemisper-rules.md")
+        let legacyURL = fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".whiskrio-rules.md")
         if fileManager.fileExists(atPath: legacyURL.path) {
             // 古い形式はマークダウンなので、デフォルトを使用
             print("[RuleEngine] Legacy markdown rules found, using default YAML config")

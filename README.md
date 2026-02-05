@@ -1,6 +1,10 @@
-# Gemisper
+<p align="center">
+  <img src="Gemisper/Resources/AppIcon.iconset/icon_256x256.png" alt="WhiskrIO" width="128" height="128">
+</p>
 
-Gemini API を使用した macOS 用の音声入力アプリ。WhisprFlow の機能を再現し、より柔軟なカスタマイズを可能にしています。
+# WhiskrIO
+
+Gemini API を使用した macOS 用の音声入力アプリ。猫のひげ（Whisker）のように敏感に音声をキャッチし、テキストに変換します。
 
 ## 機能
 
@@ -35,7 +39,7 @@ Gemini API を使用した macOS 用の音声入力アプリ。WhisprFlow の機
 - 例: 「コマンド ホームディレクトリのファイル一覧」→ `ls ~`
 
 ### 📜 ルールシステム（.cursorrules風）
-- `~/.config/gemisper/rules.yaml` で柔軟なルール定義
+- `~/.config/whiskrio/rules.yaml` で柔軟なルール定義
 - トリガーワードとアクションを自由に設定
 - 対応アクション:
   - `generate_command`: zsh/bashコマンド生成
@@ -81,7 +85,7 @@ cd Gemisper
 ./build.sh
 
 # アプリケーションへ移動
-cp -r Gemisper.app /Applications/
+cp -r WhiskrIO.app /Applications/
 ```
 
 ### 2. 権限の付与
@@ -100,7 +104,7 @@ cp -r Gemisper.app /Applications/
 1. [Google AI Studio](https://aistudio.google.com/app/apikey) にアクセス
 2. 「APIキーを作成」をクリック
 3. 生成されたキーをコピー
-4. Gemisper の設定画面で API キーを貼り付け（👁️ボタンで表示/非表示切替、📋ボタンでペースト）
+4. WhiskrIO の設定画面で API キーを貼り付け（👁️ボタンで表示/非表示切替、📋ボタンでペースト）
 
 **注意**: APIキーは Keychain に安全に保存されます。
 
@@ -130,9 +134,9 @@ cp -r Gemisper.app /Applications/
 ### ルールファイルの設定
 
 ```bash
-mkdir -p ~/.config/gemisper
-cp rules.yaml.sample ~/.config/gemisper/rules.yaml
-open ~/.config/gemisper/rules.yaml
+mkdir -p ~/.config/whiskrio
+cp rules.yaml.sample ~/.config/whiskrio/rules.yaml
+open ~/.config/whiskrio/rules.yaml
 ```
 
 サンプル:
@@ -191,8 +195,8 @@ templates:
 
 ```
 Gemisper/
-├── Sources/Gemisper/
-│   ├── Gemisper.swift              # アプリケーションエントリーポイント
+├── Sources/WhiskrIO/
+│   ├── WhiskrIO.swift              # アプリケーションエントリーポイント
 │   ├── Models/
 │   │   ├── Settings.swift          # 設定モデル・トークン使用量
 │   │   ├── GeminiModel.swift       # Geminiモデル定義
@@ -219,7 +223,7 @@ Gemisper/
 
 ## WhisprFlowとの比較
 
-| 機能 | WhisprFlow | Gemisper |
+| 機能 | WhisprFlow | WhiskrIO |
 |------|------------|----------|
 | ユニバーサル入力 | ✅ | ✅ |
 | AI文字起こし | ✅ | ✅ (Gemini 2.5) |
