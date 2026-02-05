@@ -93,6 +93,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .languageChanged,
             object: nil
         )
+
+        // Listen for max recording duration reached
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMaxDurationReached),
+            name: .recordingMaxDurationReached,
+            object: nil
+        )
+    }
+
+    @objc private func handleMaxDurationReached() {
+        guard let recordingManager = recordingManager, recordingManager.isRecording else { return }
+        stopRecording()
     }
     
     @objc private func handleOpenSettings() {

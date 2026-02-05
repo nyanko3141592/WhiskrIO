@@ -144,7 +144,8 @@ struct AppSettings: Codable, Equatable {
     var appLanguage: AppLanguage
     var rulesEnabled: Bool
     var commandModeTriggers: [String]  // コマンドモードのトリガーワード
-    
+    var maxRecordingDuration: Int  // 録音時間の上限（秒）
+
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
         hotkeyKeyCode: 3, // F3
@@ -160,7 +161,8 @@ struct AppSettings: Codable, Equatable {
         customPrompt: nil,
         appLanguage: .english,
         rulesEnabled: false,
-        commandModeTriggers: ["コマンド", "command"]  // デフォルトのトリガー
+        commandModeTriggers: ["コマンド", "command"],  // デフォルトのトリガー
+        maxRecordingDuration: 60  // デフォルト: 1分
     )
 }
 

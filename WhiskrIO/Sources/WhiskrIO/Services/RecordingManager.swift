@@ -57,8 +57,14 @@ class RecordingManager: NSObject, ObservableObject {
 
             // 録音時間の更新タイマー
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-                guard let startTime = self?.recordingStartTime else { return }
-                self?.recordingDuration = Date().timeIntervalSince(startTime)
+                guard let self = self, let startTime = self.recordingStartTime else { return }
+                self.recordingDuration = Date().timeIntervalSince(startTime)
+
+                // 録音時間上限のチェック
+                let maxDuration = TimeInterval(SettingsManager.shared.settings.maxRecordingDuration)
+                if self.recordingDuration >= maxDuration {
+                    NotificationCenter.default.post(name: .recordingMaxDurationReached, object: nil)
+                }
             }
 
             // 録音開始音
@@ -139,6 +145,11 @@ extension RecordingManager: AVAudioRecorderDelegate {
             print("録音が正常に完了しませんでした")
         }
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    static let recordingMaxDurationReached = Notification.Name("recordingMaxDurationReached")
 }
 
 // MARK: - Sound Manager (Cat Mode)

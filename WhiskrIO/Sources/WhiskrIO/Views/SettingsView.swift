@@ -190,6 +190,35 @@ struct SettingsView: View {
     private var inputSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // 録音時間の上限
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("録音時間の上限")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Picker("上限", selection: $settingsManager.settings.maxRecordingDuration) {
+                                Text("30秒").tag(30)
+                                Text("1分").tag(60)
+                                Text("2分").tag(120)
+                                Text("3分").tag(180)
+                                Text("5分").tag(300)
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: settingsManager.settings.maxRecordingDuration) { _ in
+                                settingsManager.saveSettings()
+                            }
+                        }
+
+                        Text("設定した時間に達すると自動的に録音が停止します")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
                 // 入力モード
                 VStack(alignment: .leading, spacing: 12) {
                     Text("入力モード")
