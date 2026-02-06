@@ -21,6 +21,7 @@ class HotkeyManager {
     private var isPushToTalkKeyPressed = false
     private var lastFlagsChangeTime: Date?
     private var safetyTimer: Timer?
+    private var keyReleaseWorkItem: DispatchWorkItem?
     
     init(delegate: HotkeyDelegate) {
         self.delegate = delegate
@@ -68,9 +69,8 @@ class HotkeyManager {
         }
 
         // 安全タイマー: キーリリースイベントが失われた場合の保険
-        // 2秒ごとに現在のモディファイアキー状態をチェック
-        // イベントが正常に受信されている間は介入しない（checkModifierKeysState内で判定）
-        safetyTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        // 0.5秒ごとに現在のモディファイアキー状態をチェック（より積極的に同期）
+        safetyTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             self?.checkModifierKeysState()
         }
     }
@@ -86,6 +86,8 @@ class HotkeyManager {
         }
         safetyTimer?.invalidate()
         safetyTimer = nil
+        keyReleaseWorkItem?.cancel()
+        keyReleaseWorkItem = nil
         isPushToTalkKeyPressed = false
     }
     
@@ -102,19 +104,39 @@ class HotkeyManager {
 
         // 状態が変化した場合のみ処理
         if isKeyPressed != isPushToTalkKeyPressed {
-            isPushToTalkKeyPressed = isKeyPressed
-
             if isKeyPressed {
-                // キーが押された - 録音開始
+                // キーが押された - 即座に録音開始
+                keyReleaseWorkItem?.cancel()
+                keyReleaseWorkItem = nil
+                isPushToTalkKeyPressed = true
                 DispatchQueue.main.async { [weak self] in
                     self?.delegate?.recordingStarted()
                 }
             } else {
-                // キーが離された - 録音停止
-                DispatchQueue.main.async { [weak self] in
-                    self?.delegate?.recordingStopped()
+                // キーが離された - デバウンス処理で確認後に録音停止
+                // システムショートカットの一瞬の干渉を吸収
+                keyReleaseWorkItem?.cancel()
+                keyReleaseWorkItem = DispatchWorkItem { [weak self] in
+                    self?.confirmAndStopRecording()
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: keyReleaseWorkItem!)
             }
+        }
+    }
+
+    /// キーリリースの確認と録音停止
+    /// デバウンス後に実際のキー状態を再確認してから停止
+    private func confirmAndStopRecording() {
+        let currentFlags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let pushToTalkKeys = SettingsManager.shared.settings.pushToTalkKeys
+        let targetFlags = pushToTalkKeys.combinedModifierFlags
+
+        let isActuallyPressed = targetFlags.isSubset(of: currentFlags)
+
+        // 実際にキーが離されている場合のみ停止
+        if !isActuallyPressed && isPushToTalkKeyPressed {
+            isPushToTalkKeyPressed = false
+            delegate?.recordingStopped()
         }
     }
 
@@ -125,8 +147,9 @@ class HotkeyManager {
 
         // 最後のフラグ変更から十分な時間が経過していない場合はスキップ
         // （イベントが正常に受信されている間は介入しない）
+        // 0.2秒に短縮してより積極的にリカバリー
         if let lastChange = lastFlagsChangeTime,
-           Date().timeIntervalSince(lastChange) < 1.0 {
+           Date().timeIntervalSince(lastChange) < 0.2 {
             return
         }
 

@@ -10,7 +10,6 @@ class RecordingManager: NSObject, ObservableObject {
     private var timer: Timer?
     private var recordingStartTime: Date?
     private var currentRecordingURL: URL?
-    private var wasMediaPlaying = false
     
     static func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
@@ -28,12 +27,6 @@ class RecordingManager: NSObject, ObservableObject {
     }
     
     func startRecording() {
-        // メディア再生中なら一時停止
-        wasMediaPlaying = MediaController.isPlaying()
-        if wasMediaPlaying {
-            MediaController.pause()
-        }
-
         // 録音設定 - 高品質でGemini APIに最適化
         let settings: [String: Any] = [
             AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
@@ -75,10 +68,6 @@ class RecordingManager: NSObject, ObservableObject {
         } catch {
             print("録音開始エラー: \(error)")
             isRecording = false
-            // エラー時はメディアを再開
-            if wasMediaPlaying {
-                MediaController.play()
-            }
         }
     }
     
@@ -100,15 +89,6 @@ class RecordingManager: NSObject, ObservableObject {
         isRecording = false
         recordingDuration = 0
 
-        // メディアを再開
-        if wasMediaPlaying {
-            // 少し遅延させて再開（文字起こし中に再開しないように）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                MediaController.play()
-            }
-            wasMediaPlaying = false
-        }
-
         completion(currentRecordingURL)
     }
     
@@ -120,12 +100,6 @@ class RecordingManager: NSObject, ObservableObject {
         timer = nil
         isRecording = false
         recordingDuration = 0
-
-        // メディアを再開
-        if wasMediaPlaying {
-            MediaController.play()
-            wasMediaPlaying = false
-        }
     }
     
     func getAudioLevel() -> Float {
@@ -225,58 +199,3 @@ class SoundManager {
 }
 
 import AudioToolbox
-import CoreGraphics
-
-// MARK: - Media Controller
-/// システムのメディア再生を制御するユーティリティ
-class MediaController {
-    // メディアキーのキーコード
-    private static let NX_KEYTYPE_PLAY: UInt32 = 16
-
-    /// 現在メディアが再生中かどうかを確認
-    static func isPlaying() -> Bool {
-        // MRMediaRemoteを使用するとプライベートAPIになるため、
-        // シンプルにNowPlayingの情報を取得する方法を使用
-        // ただし、macOSではこの情報へのアクセスが制限されているため、
-        // 常にtrueを返して一時停止を試みる（再生中でなければ何も起きない）
-        return true
-    }
-
-    /// メディアを一時停止
-    static func pause() {
-        sendMediaKey(keyType: NX_KEYTYPE_PLAY, keyDown: true)
-        sendMediaKey(keyType: NX_KEYTYPE_PLAY, keyDown: false)
-    }
-
-    /// メディアを再生
-    static func play() {
-        sendMediaKey(keyType: NX_KEYTYPE_PLAY, keyDown: true)
-        sendMediaKey(keyType: NX_KEYTYPE_PLAY, keyDown: false)
-    }
-
-    /// メディアキーイベントを送信
-    private static func sendMediaKey(keyType: UInt32, keyDown: Bool) {
-        let flags: UInt64 = keyDown ? 0xa00 : 0xb00
-        let data1 = Int64((keyType << 16) | (keyDown ? 0xa00 : 0xb00))
-
-        guard let event = CGEvent(source: nil) else { return }
-
-        event.type = CGEventType(rawValue: UInt32(keyDown ? 10 : 11))! // NX_SYSDEFINED
-        event.setIntegerValueField(.eventSourceUserData, value: 0)
-
-        // NX_SYSDEFINED イベントを作成
-        let nsEvent = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(flags)),
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8, // NX_SUBTYPE_AUX_CONTROL_BUTTONS
-            data1: Int(data1),
-            data2: -1
-        )
-
-        nsEvent?.cgEvent?.post(tap: .cghidEventTap)
-    }
-}

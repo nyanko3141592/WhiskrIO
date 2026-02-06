@@ -183,6 +183,8 @@ struct AppSettings: Codable, Equatable {
     var rulesEnabled: Bool
     var commandModeTriggers: [String]  // コマンドモードのトリガーワード
     var maxRecordingDuration: Int  // 録音時間の上限（秒）
+    var captureScreenshot: Bool  // スクリーンショットを送信するか
+    var captureSize: CaptureSize  // キャプチャサイズ
 
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
@@ -200,7 +202,9 @@ struct AppSettings: Codable, Equatable {
         appLanguage: .english,
         rulesEnabled: false,
         commandModeTriggers: ["コマンド", "command"],  // デフォルトのトリガー
-        maxRecordingDuration: 60  // デフォルト: 1分
+        maxRecordingDuration: 60,  // デフォルト: 1分
+        captureScreenshot: false,  // デフォルト: OFF（権限が必要）
+        captureSize: .medium  // デフォルト: 800×800px
     )
 }
 

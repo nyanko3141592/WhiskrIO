@@ -243,6 +243,66 @@ struct SettingsView: View {
 
                 Divider()
 
+                // 画面コンテキスト
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("画面コンテキスト")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("画面のスクリーンショットを送信", isOn: $settingsManager.settings.captureScreenshot)
+                            .onChange(of: settingsManager.settings.captureScreenshot) { newValue in
+                                settingsManager.saveSettings()
+                                // 有効化時に権限がなければリクエスト
+                                if newValue && !ScreenshotManager.shared.hasScreenRecordingPermission() {
+                                    ScreenshotManager.shared.requestScreenRecordingPermission()
+                                }
+                            }
+
+                        Text("音声入力時にカーソル周辺の画面をキャプチャし、コンテキストとして送信します")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        if settingsManager.settings.captureScreenshot {
+                            // キャプチャサイズ
+                            Picker("キャプチャ範囲", selection: $settingsManager.settings.captureSize) {
+                                ForEach(CaptureSize.allCases, id: \.self) { size in
+                                    Text(size.displayName).tag(size)
+                                }
+                            }
+                            .onChange(of: settingsManager.settings.captureSize) { _ in
+                                settingsManager.saveSettings()
+                            }
+
+                            // 権限状態
+                            HStack(spacing: 6) {
+                                if ScreenshotManager.shared.hasScreenRecordingPermission() {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("画面収録の権限: 許可済み")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                } else {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                    Text("画面収録の権限が必要です")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+
+                                    Button("設定を開く") {
+                                        ScreenshotManager.shared.requestScreenRecordingPermission()
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.caption)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
                 // 入力モード
                 VStack(alignment: .leading, spacing: 12) {
                     Text("入力モード")

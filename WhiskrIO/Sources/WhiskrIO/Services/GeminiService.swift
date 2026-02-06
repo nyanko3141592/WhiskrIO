@@ -136,13 +136,13 @@ class GeminiService {
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
-    func transcribe(audioURL: URL) async throws -> String {
+    func transcribe(audioURL: URL, screenshotData: Data? = nil) async throws -> String {
         guard !apiKey.isEmpty else {
             throw GeminiError.noAPIKey
         }
-        
+
         let settings = SettingsManager.shared.settings
-        
+
         // 音声ファイルをBase64エンコード
         let audioData: Data
         do {
@@ -150,9 +150,9 @@ class GeminiService {
         } catch {
             throw GeminiError.encodingError
         }
-        
+
         // まず音声を文字起こし（ルール適用前に元のテキストを取得）
-        let transcribedText = try await performBasicTranscription(audioData: audioData)
+        let transcribedText = try await performBasicTranscription(audioData: audioData, screenshotData: screenshotData)
         
         // ルールエンジンで処理
         let ruleResult = RuleEngine.shared.process(text: transcribedText)
@@ -176,12 +176,28 @@ class GeminiService {
     }
     
     /// 基本の文字起こしを実行
-    private func performBasicTranscription(audioData: Data) async throws -> String {
+    private func performBasicTranscription(audioData: Data, screenshotData: Data? = nil) async throws -> String {
         let settings = SettingsManager.shared.settings
         let audioBase64 = audioData.base64EncodedString()
-        
+
         var prompt = buildDefaultPrompt(settings: settings)
-        
+
+        // スクリーンショットがある場合はプロンプトを追加
+        if screenshotData != nil {
+            prompt += """
+
+
+            IMPORTANT - SCREENSHOT CONTEXT RULES:
+            - A screenshot is provided ONLY for context understanding
+            - DO NOT transcribe or output any text visible in the screenshot
+            - DO NOT describe what you see in the screenshot
+            - ONLY transcribe what the user SAYS in the audio
+            - Use the screenshot silently to understand context (e.g., what app they're using, what they might be referring to)
+            - If the user says "this" or "here", understand what they mean from the screenshot, but output only their spoken words
+            - The screenshot helps you understand intent, NOT to be transcribed
+            """
+        }
+
         // スタイル設定（カスタムプロンプトがない場合のみ）
         if settings.customPrompt == nil || settings.customPrompt!.isEmpty {
             switch settings.style {
@@ -195,20 +211,37 @@ class GeminiService {
                 break
             }
         }
-        
+
+        // partsを構築
+        var parts: [[String: Any]] = [
+            ["text": prompt]
+        ]
+
+        // スクリーンショットがある場合は追加
+        if let screenshot = screenshotData {
+            let screenshotBase64 = screenshot.base64EncodedString()
+            parts.append([
+                "inline_data": [
+                    "mime_type": "image/jpeg",
+                    "data": screenshotBase64
+                ]
+            ])
+            print("[GeminiService] Including screenshot (\(screenshot.count) bytes)")
+        }
+
+        // 音声を追加
+        parts.append([
+            "inline_data": [
+                "mime_type": "audio/mp4",
+                "data": audioBase64
+            ]
+        ])
+
         // リクエストボディの構築
         let requestBody: [String: Any] = [
             "contents": [
                 [
-                    "parts": [
-                        ["text": prompt],
-                        [
-                            "inline_data": [
-                                "mime_type": "audio/mp4",
-                                "data": audioBase64
-                            ]
-                        ]
-                    ]
+                    "parts": parts
                 ]
             ],
             "generationConfig": [
@@ -401,6 +434,7 @@ class GeminiService {
         - DO NOT add any introduction like "Here is the result" or "編集結果はこちら"
         - DO NOT add any commentary or explanation
         - DO NOT wrap the text in quotes
+        - DO NOT output the instruction itself
         - Maintain the original language of the text unless the instruction explicitly requests a different language
 
         Selected text:
@@ -411,6 +445,38 @@ class GeminiService {
         """
 
         return try await generateContent(prompt: prompt)
+    }
+
+    /// 選択テキストにルールを適用
+    /// - Parameters:
+    ///   - selectedText: 選択されたテキスト
+    ///   - ruleResult: マッチしたルールの処理結果
+    /// - Returns: ルール適用後のテキスト
+    func processSelectionWithRule(selectedText: String, ruleResult: RuleProcessingResult) async throws -> String {
+        guard !apiKey.isEmpty else {
+            throw GeminiError.noAPIKey
+        }
+
+        // ルールに基づいてプロンプトを生成（選択テキストを処理対象にする）
+        let prompt = RuleEngine.shared.generatePrompt(
+            for: ruleResult.action,
+            text: selectedText,
+            parameters: ruleResult.parameters,
+            customPrompt: ruleResult.matchedRule?.prompt
+        )
+
+        let result = try await generateContent(prompt: prompt)
+
+        // テンプレート適用（選択編集モードでは翻訳以外はテンプレート無しで出力）
+        if ruleResult.action == .translate, let template = ruleResult.template {
+            let values: [String: String] = [
+                "original": selectedText,
+                "translated": result
+            ]
+            return RuleEngine.shared.applyTemplate(template, values: values)
+        }
+
+        return result
     }
 
     /// 選択テキスト編集用の音声を文字起こし（指示として）

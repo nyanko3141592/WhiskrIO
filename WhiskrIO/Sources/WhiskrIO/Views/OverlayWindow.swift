@@ -179,8 +179,8 @@ class CatFaceView: NSView {
         levels.removeFirst()
         levels.append(clampedLevel)
 
-        // アニメーション更新
-        animationPhase += 0.15
+        // アニメーション更新（速度アップ: 0.15 → 0.25）
+        animationPhase += 0.25
         whiskerPadPulse += 0.2
 
         needsDisplay = true
@@ -218,23 +218,24 @@ class CatFaceView: NSView {
             let levelIndex = isLeft ? (whiskerCount - 1 - i) : (maxLevels - whiskerCount + i)
             let level = levels[min(levelIndex, levels.count - 1)]
 
-            // 髭の長さ（音量で変化）
-            let whiskerLength = baseLength + level * 10
+            // 髭の長さ（音量で変化）- 揺らぎを大きく
+            let whiskerLength = baseLength + level * 18
 
             // 髭の角度（上下10度ずつ傾ける + 音量があるときだけ波打ち）
             let baseAngle: CGFloat = isLeft ? CGFloat.pi : 0
             let degrees10: CGFloat = 10 * .pi / 180  // 10度をラジアンに
             let spreadAngle = (i == 0 ? -degrees10 : degrees10) * (isLeft ? -1 : 1)
-            let waveAngle = level > 0.05 ? sin(animationPhase + CGFloat(i) * 0.8) * 0.1 * level : 0
+            // 角度の揺れを大きく（0.1 → 0.3）
+            let waveAngle = level > 0.05 ? sin(animationPhase + CGFloat(i) * 0.8) * 0.3 * level : 0
 
             let angle = baseAngle + spreadAngle + waveAngle
 
             // 髭の終点
             let endX = whiskerStartX + cos(angle) * whiskerLength
-            let endY = startY + sin(angle) * whiskerLength * 0.25
+            let endY = startY + sin(angle) * whiskerLength * 0.35  // 上下の動きも大きく
 
-            // 波打つ制御点（音量があるときだけ）
-            let waveOffset = level > 0.05 ? sin(animationPhase * 1.5 + CGFloat(i) * 1.2) * level * 5 : 0
+            // 波打つ制御点（音量があるときだけ）- 波打ちを大きく（5 → 12）
+            let waveOffset = level > 0.05 ? sin(animationPhase * 1.5 + CGFloat(i) * 1.2) * level * 12 : 0
             let ctrlX = (whiskerStartX + endX) / 2
             let ctrlY = startY + waveOffset
 
