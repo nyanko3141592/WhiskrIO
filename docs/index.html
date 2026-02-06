@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhiskrIO - AI Voice Input for macOS</title>
     <meta name="description" content="Google Gemini APIを使用したmacOS向け音声入力アプリ。話すだけでテキスト入力、翻訳、コマンド生成。">
+    <link rel="icon" type="image/png" href="app-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -94,6 +95,7 @@
         .logo-icon {
             width: 40px;
             height: 40px;
+            border-radius: 8px;
         }
 
         .nav-links {
@@ -227,55 +229,22 @@
             background: rgba(44, 216, 246, 0.1);
         }
 
-        /* Cat Face Animation */
+        /* Cat Face Canvas Demo */
         .cat-demo {
             margin-top: 4rem;
             display: flex;
             justify-content: center;
         }
 
-        .cat-face-container {
+        .cat-face-wrapper {
             position: relative;
-            width: 200px;
-            height: 60px;
-            background: var(--primary);
-            border-radius: 30px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             box-shadow: 0 10px 40px rgba(44, 216, 246, 0.3);
+            border-radius: 30px;
         }
 
-        .whisker {
-            position: absolute;
-            width: 50px;
-            height: 2px;
-            background: #000;
-            border-radius: 2px;
-            transform-origin: center;
-            animation: whiskerWave 1.5s ease-in-out infinite;
-        }
-
-        .whisker-left-1 { left: 10px; top: 22px; transform: rotate(-10deg); animation-delay: 0s; }
-        .whisker-left-2 { left: 10px; top: 32px; transform: rotate(10deg); animation-delay: 0.2s; }
-        .whisker-right-1 { right: 10px; top: 22px; transform: rotate(10deg); animation-delay: 0.1s; }
-        .whisker-right-2 { right: 10px; top: 32px; transform: rotate(-10deg); animation-delay: 0.3s; }
-
-        @keyframes whiskerWave {
-            0%, 100% { transform: rotate(var(--base-angle, 0deg)) scaleX(1); }
-            50% { transform: rotate(calc(var(--base-angle, 0deg) + 5deg)) scaleX(1.1); }
-        }
-
-        .whisker-left-1 { --base-angle: -10deg; }
-        .whisker-left-2 { --base-angle: 10deg; }
-        .whisker-right-1 { --base-angle: 10deg; }
-        .whisker-right-2 { --base-angle: -10deg; }
-
-        .cat-nose {
-            width: 30px;
-            height: 20px;
-            background: var(--nose-pink);
-            border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%;
+        #catCanvas {
+            display: block;
+            border-radius: 30px;
         }
 
         /* Features Section */
@@ -512,6 +481,12 @@
             margin-bottom: 1rem;
         }
 
+        .footer-logo img {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+        }
+
         .footer-links {
             display: flex;
             gap: 2rem;
@@ -565,15 +540,7 @@
     <header>
         <nav>
             <div class="logo">
-                <svg class="logo-icon" viewBox="0 0 100 40" fill="none">
-                    <ellipse cx="50" cy="20" rx="48" ry="18" fill="#2CD8F6"/>
-                    <ellipse cx="50" cy="20" rx="40" ry="14" fill="white"/>
-                    <path d="M55 8 Q50 22 45 8" fill="#EA808C"/>
-                    <line x1="10" y1="15" x2="35" y2="18" stroke="black" stroke-width="2" stroke-linecap="round"/>
-                    <line x1="10" y1="25" x2="35" y2="22" stroke="black" stroke-width="2" stroke-linecap="round"/>
-                    <line x1="90" y1="15" x2="65" y2="18" stroke="black" stroke-width="2" stroke-linecap="round"/>
-                    <line x1="90" y1="25" x2="65" y2="22" stroke="black" stroke-width="2" stroke-linecap="round"/>
-                </svg>
+                <img src="app-icon.png" alt="WhiskrIO" class="logo-icon">
                 WhiskrIO
             </div>
             <ul class="nav-links">
@@ -610,12 +577,8 @@
                 </a>
             </div>
             <div class="cat-demo">
-                <div class="cat-face-container">
-                    <div class="whisker whisker-left-1"></div>
-                    <div class="whisker whisker-left-2"></div>
-                    <div class="whisker whisker-right-1"></div>
-                    <div class="whisker whisker-right-2"></div>
-                    <div class="cat-nose"></div>
+                <div class="cat-face-wrapper">
+                    <canvas id="catCanvas" width="240" height="60"></canvas>
                 </div>
             </div>
         </div>
@@ -751,11 +714,7 @@
     <footer>
         <div class="footer-content">
             <div class="footer-logo">
-                <svg width="30" height="12" viewBox="0 0 100 40" fill="none">
-                    <ellipse cx="50" cy="20" rx="48" ry="18" fill="#2CD8F6"/>
-                    <ellipse cx="50" cy="20" rx="40" ry="14" fill="white"/>
-                    <path d="M55 8 Q50 22 45 8" fill="#EA808C"/>
-                </svg>
+                <img src="app-icon.png" alt="WhiskrIO">
                 WhiskrIO
             </div>
             <div class="footer-links">
@@ -778,20 +737,143 @@
             });
         });
 
-        // Animate whiskers on scroll
-        const whiskers = document.querySelectorAll('.whisker');
-        let phase = 0;
+        // Cat Face Canvas Animation - matching OverlayWindow.swift
+        const canvas = document.getElementById('catCanvas');
+        const ctx = canvas.getContext('2d');
 
-        setInterval(() => {
-            phase += 0.1;
-            whiskers.forEach((whisker, i) => {
-                const wave = Math.sin(phase + i * 0.5) * 3;
-                const baseAngle = whisker.classList.contains('whisker-left-1') ? -10 :
-                                 whisker.classList.contains('whisker-left-2') ? 10 :
-                                 whisker.classList.contains('whisker-right-1') ? 10 : -10;
-                whisker.style.transform = `rotate(${baseAngle + wave}deg)`;
-            });
-        }, 50);
+        // SVG dimensions from Swift code
+        const svgWidth = 949;
+        const svgHeight = 362;
+
+        // Colors
+        const catFaceColor = '#2CD8F6';
+        const noseColor = '#EA808C';
+
+        // Animation state
+        let animationPhase = 0;
+        const maxLevels = 12;
+        let levels = new Array(maxLevels).fill(0);
+
+        // Simulate audio levels for demo
+        function simulateAudioLevel() {
+            // Random level with some smoothing
+            const target = Math.random() * 0.8 + 0.2;
+            levels.shift();
+            levels.push(target);
+        }
+
+        function drawCatFace() {
+            const width = canvas.width;
+            const height = canvas.height;
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw background (cyan pill shape)
+            ctx.fillStyle = catFaceColor;
+            ctx.beginPath();
+            ctx.roundRect(0, 0, width, height, height / 2);
+            ctx.fill();
+
+            // Calculate scale to fit SVG face
+            const scale = height / svgHeight;
+            const faceWidth = svgWidth * scale;
+            const faceHeight = svgHeight * scale;
+            const faceX = centerX - faceWidth / 2;
+            const faceY = centerY - faceHeight / 2;
+
+            // Draw whiskers first (behind face)
+            const avgLevel = levels.reduce((a, b) => a + b, 0) / levels.length;
+            drawWhiskers(centerX, centerY, true, avgLevel);  // Left
+            drawWhiskers(centerX, centerY, false, avgLevel); // Right
+
+            // Draw white face (ellipse approximation of the SVG path)
+            ctx.save();
+            ctx.translate(faceX, faceY);
+            ctx.scale(scale, scale);
+
+            // Face path (white) - from Swift CGPath
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.moveTo(948.155, 232.922);
+            ctx.bezierCurveTo(948.155, 353.187, 474.078, 460.555, 474.078, 203.798);
+            ctx.bezierCurveTo(474.078, 457.853, 0, 353.187, 0, 232.922);
+            ctx.bezierCurveTo(0, 112.658, 212.252, 15.1642, 474.078, 15.1642);
+            ctx.bezierCurveTo(735.903, 15.1642, 948.155, 112.658, 948.155, 232.922);
+            ctx.closePath();
+            ctx.fill();
+
+            // Nose path (pink) - from Swift CGPath
+            ctx.fillStyle = noseColor;
+            ctx.beginPath();
+            ctx.moveTo(581.237, 0.0376474);
+            ctx.bezierCurveTo(657.641, -3.14584, 523.188, 196.629, 472.756, 196.629);
+            ctx.bezierCurveTo(422.324, 196.629, 304.257, 0.0376474, 357.395, 0.0376474);
+            ctx.bezierCurveTo(410.533, 0.0376474, 552.339, 1.24176, 581.237, 0.0376474);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawWhiskers(centerX, centerY, isLeft, avgLevel) {
+            const whiskerCount = 2;
+            const whiskerSpacing = 5;
+            const baseLength = 37;
+            const whiskerStartX = isLeft ? centerX - 14 : centerX + 14;
+
+            for (let i = 0; i < whiskerCount; i++) {
+                // Vertical position
+                const verticalOffset = i * whiskerSpacing - whiskerSpacing / 2;
+                const startY = centerY + verticalOffset - 1;
+
+                // Get level for this whisker
+                const levelIndex = isLeft ? (whiskerCount - 1 - i) : (maxLevels - whiskerCount + i);
+                const level = levels[Math.min(levelIndex, levels.length - 1)];
+
+                // Whisker length varies with level
+                const whiskerLength = baseLength + level * 18;
+
+                // Angle calculation
+                const baseAngle = isLeft ? Math.PI : 0;
+                const degrees10 = 10 * Math.PI / 180;
+                const spreadAngle = (i === 0 ? -degrees10 : degrees10) * (isLeft ? -1 : 1);
+                const waveAngle = level > 0.05 ? Math.sin(animationPhase + i * 0.8) * 0.3 * level : 0;
+                const angle = baseAngle + spreadAngle + waveAngle;
+
+                // End point
+                const endX = whiskerStartX + Math.cos(angle) * whiskerLength;
+                const endY = startY + Math.sin(angle) * whiskerLength * 0.35;
+
+                // Control point for curve
+                const waveOffset = level > 0.05 ? Math.sin(animationPhase * 1.5 + i * 1.2) * level * 12 : 0;
+                const ctrlX = (whiskerStartX + endX) / 2;
+                const ctrlY = startY + waveOffset;
+
+                // Draw whisker
+                const intensity = 0.7 + level * 0.3;
+                ctx.strokeStyle = `rgba(0, 0, 0, ${intensity})`;
+                ctx.lineWidth = 1.5 - Math.abs(i - 1) * 0.15 + level * 0.2;
+                ctx.lineCap = 'round';
+
+                ctx.beginPath();
+                ctx.moveTo(whiskerStartX, startY);
+                ctx.quadraticCurveTo(ctrlX, ctrlY, endX, endY);
+                ctx.stroke();
+            }
+        }
+
+        function animate() {
+            simulateAudioLevel();
+            animationPhase += 0.25;
+            drawCatFace();
+            requestAnimationFrame(animate);
+        }
+
+        // Start animation
+        animate();
     </script>
 </body>
 </html>
