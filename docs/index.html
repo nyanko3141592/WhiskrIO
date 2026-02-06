@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhiskrIO - AI Voice Input for macOS</title>
-    <meta name="description" content="Google Gemini APIを使用したmacOS向け音声入力アプリ。話すだけでテキスト入力、翻訳、コマンド生成。">
+    <meta name="description" content="AI voice input app for macOS using Google Gemini API. Just speak to input text, translate, and generate commands.">
     <link rel="icon" type="image/png" href="app-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -62,6 +62,44 @@
         @keyframes bgMove {
             0%, 100% { transform: translate(0, 0) rotate(0deg); }
             50% { transform: translate(-5%, -5%) rotate(5deg); }
+        }
+
+        /* Character animation */
+        .character {
+            animation: characterBounce 2s ease-in-out infinite;
+        }
+
+        .character-flip {
+            transform: scaleX(-1);
+        }
+
+        @keyframes characterBounce {
+            0%, 100% { transform: scaleY(0.95); }
+            50% { transform: scaleY(1.05); }
+        }
+
+        .character-flip {
+            animation: characterBounceFlip 2s ease-in-out infinite;
+        }
+
+        @keyframes characterBounceFlip {
+            0%, 100% { transform: scaleX(-1) scaleY(0.95); }
+            50% { transform: scaleX(-1) scaleY(1.05); }
+        }
+
+        .character-small {
+            width: 60px;
+            height: auto;
+        }
+
+        .character-medium {
+            width: 100px;
+            height: auto;
+        }
+
+        .character-large {
+            width: 160px;
+            height: auto;
         }
 
         /* Header */
@@ -146,6 +184,15 @@
 
         .hero-content {
             max-width: 900px;
+        }
+
+        .hero-app-icon {
+            display: block;
+            width: 120px;
+            height: 120px;
+            border-radius: 24px;
+            margin: 0 auto 2rem;
+            box-shadow: 0 10px 40px rgba(44, 216, 246, 0.3);
         }
 
         .hero-badge {
@@ -233,7 +280,9 @@
         .cat-demo {
             margin-top: 4rem;
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
         }
 
         .cat-face-wrapper {
@@ -245,6 +294,115 @@
         #catCanvas {
             display: block;
             border-radius: 30px;
+        }
+
+        /* Motivation Section */
+        .motivation {
+            padding: 6rem 2rem;
+            background: linear-gradient(180deg, rgba(44, 216, 246, 0.03) 0%, transparent 100%);
+        }
+
+        .motivation-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .motivation-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 768px) {
+            .motivation-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .motivation-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 280px;
+        }
+
+        .motivation-card.problem {
+            opacity: 0.7;
+        }
+
+        .motivation-card.problem:hover {
+            opacity: 0.9;
+        }
+
+        .motivation-card.solution {
+            border-color: rgba(44, 216, 246, 0.3);
+            box-shadow: 0 10px 40px rgba(44, 216, 246, 0.15);
+            overflow: hidden;
+        }
+
+        .motivation-card.solution:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 60px rgba(44, 216, 246, 0.25);
+        }
+
+        .motivation-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .motivation-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .motivation-card-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .motivation-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            margin: 0;
+        }
+
+        .motivation-card p strong {
+            color: var(--text);
+        }
+
+        .verdict {
+            margin-top: auto;
+            padding-top: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .motivation-character {
+            position: absolute;
+            right: -15px;
+            bottom: -15px;
+            width: 70px;
+            height: auto;
+            opacity: 0.35;
+            transition: opacity 0.3s;
+        }
+
+        .motivation-card.solution:hover .motivation-character {
+            opacity: 0.6;
+        }
+
+        .motivation-card.solution p strong {
+            color: var(--primary);
         }
 
         /* Features Section */
@@ -282,6 +440,8 @@
             border-radius: 20px;
             padding: 2rem;
             transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
         }
 
         .feature-card:hover {
@@ -311,6 +471,18 @@
         .feature-card p {
             color: var(--text-secondary);
             font-size: 0.95rem;
+        }
+
+        .feature-character {
+            position: absolute;
+            right: -10px;
+            bottom: -10px;
+            opacity: 0.15;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover .feature-character {
+            opacity: 0.4;
         }
 
         /* Demo Section */
@@ -415,48 +587,66 @@
         /* Rules Section */
         .rules {
             padding: 6rem 2rem;
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
+            position: relative;
         }
 
         .rules-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 1rem;
+        }
+
+        @media (max-width: 600px) {
+            .rules-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .rule-item {
             background: var(--bg-card);
             border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 12px;
-            padding: 1.25rem;
+            padding: 1rem 1.25rem;
             display: flex;
-            align-items: center;
-            gap: 1rem;
+            flex-direction: column;
+            gap: 0.5rem;
             transition: all 0.3s;
         }
 
         .rule-item:hover {
             border-color: rgba(255, 107, 53, 0.3);
-            transform: translateX(5px);
+            transform: translateY(-2px);
         }
 
         .rule-trigger {
             background: var(--gradient-2);
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
             font-weight: 600;
-            font-size: 0.875rem;
-            white-space: nowrap;
-        }
-
-        .rule-arrow {
-            color: var(--text-secondary);
+            font-size: 0.8rem;
+            width: fit-content;
         }
 
         .rule-action {
             color: var(--text-secondary);
             font-size: 0.9rem;
+        }
+
+        .rules-character {
+            position: absolute;
+            right: -60px;
+            bottom: 0;
+            width: 100px;
+            height: auto;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 1100px) {
+            .rules-character {
+                display: none;
+            }
         }
 
         /* Footer */
@@ -509,6 +699,10 @@
             font-size: 0.875rem;
         }
 
+        .footer-character {
+            margin-top: 2rem;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .nav-links {
@@ -544,6 +738,7 @@
                 WhiskrIO
             </div>
             <ul class="nav-links">
+                <li><a href="#why">Why</a></li>
                 <li><a href="#features">Features</a></li>
                 <li><a href="#demo">Demo</a></li>
                 <li><a href="#rules">Rules</a></li>
@@ -559,12 +754,13 @@
 
     <section class="hero">
         <div class="hero-content">
+            <img src="app-icon.png" alt="WhiskrIO" class="hero-app-icon">
             <div class="hero-badge">
                 <span>🎤</span>
                 <span>Powered by Google Gemini</span>
             </div>
             <h1>Voice to Text,<br>Reimagined.</h1>
-            <p>macOS向けAI音声入力アプリ。話すだけでテキスト入力、翻訳、コマンド生成。猫の髭が声に合わせて動く、かわいいインジケーター付き。</p>
+            <p>AI voice input for macOS. Speak to type, translate, and generate commands.<br>Cat whiskers animate with your voice. 🐱</p>
             <div class="hero-buttons">
                 <a href="https://github.com/nyanko3141592/WhiskrIO/releases" class="btn-primary">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -584,41 +780,81 @@
         </div>
     </section>
 
+    <section class="motivation" id="why">
+        <div class="motivation-content">
+            <div class="section-header">
+                <h2>Why WhiskrIO?</h2>
+                <p>Finding the "just right" voice input / 音声入力の「ちょうどいい」を求めて</p>
+            </div>
+            <div class="motivation-grid">
+                <div class="motivation-card problem">
+                    <div class="motivation-icon">🖥️</div>
+                    <div class="motivation-card-body">
+                        <h3>Local Models</h3>
+                        <p>Accurate but <strong>heavy</strong>.<br>High CPU load slows down your work.</p>
+                    </div>
+                    <div class="verdict">❌</div>
+                </div>
+                <div class="motivation-card problem">
+                    <div class="motivation-icon">💸</div>
+                    <div class="motivation-card-body">
+                        <h3>Subscription Apps</h3>
+                        <p>Convenient but <strong>expensive</strong>.<br>Monthly fees add up for occasional use.</p>
+                    </div>
+                    <div class="verdict">❌</div>
+                </div>
+                <div class="motivation-card solution">
+                    <div class="motivation-icon">✨</div>
+                    <div class="motivation-card-body">
+                        <h3>WhiskrIO</h3>
+                        <p>Use your own Gemini API key. <strong>Pay-as-you-go</strong>.<br>And it's <strong>cute</strong>. 🐱</p>
+                    </div>
+                    <div class="verdict">🐱</div>
+                    <img src="character.svg" alt="" class="motivation-character character">
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="features" id="features">
         <div class="section-header">
             <h2>Powerful Features</h2>
-            <p>シンプルなのに、できることがたくさん</p>
+            <p>Simple yet powerful / シンプルなのに、できることがたくさん</p>
         </div>
         <div class="features-grid">
             <div class="feature-card">
                 <div class="feature-icon">🎙️</div>
-                <h3>高精度な文字起こし</h3>
-                <p>Gemini APIによる高精度な音声認識。日本語・英語どちらも対応。フィラーワードを自動除去。</p>
+                <h3>High-Accuracy Transcription</h3>
+                <p>Powered by Gemini API. Supports Japanese & English. Auto-removes filler words.</p>
+                <img src="character.svg" alt="" class="feature-character character-small">
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🔄</div>
-                <h3>選択テキスト編集</h3>
-                <p>テキストを選択して話すだけ。「英語」で翻訳、「ビジネスメール」で文体変換。</p>
+                <h3>Selection Edit</h3>
+                <p>Select text and speak. Say "English" to translate, "Business" to change tone.</p>
+                <img src="character.svg" alt="" class="feature-character character-small character-flip" style="animation-delay: -0.7s;">
             </div>
             <div class="feature-card">
                 <div class="feature-icon">⌨️</div>
-                <h3>コマンド生成</h3>
-                <p>「コマンド」と言ってから指示するだけで、zshコマンドを自動生成。</p>
+                <h3>Command Generation</h3>
+                <p>Say "Command" then describe what you want. Generates zsh commands automatically.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">📸</div>
-                <h3>画面コンテキスト</h3>
-                <p>カーソル周辺のスクリーンショットを送信し、文脈を理解した入力が可能。</p>
+                <h3>Screen Context</h3>
+                <p>Captures screenshot around cursor. AI understands visual context for smarter input.</p>
+                <img src="character.svg" alt="" class="feature-character character-small" style="animation-delay: -1.3s;">
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🐱</div>
-                <h3>かわいいインジケーター</h3>
-                <p>録音中は猫の髭が声に合わせてアニメーション。見ていて楽しい。</p>
+                <h3>Cute Indicator</h3>
+                <p>Cat whiskers animate with your voice while recording. Fun to watch! 🐱</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">⚡</div>
                 <h3>Push to Talk</h3>
-                <p>ホットキーを押している間だけ録音。素早く、確実に入力。</p>
+                <p>Records only while holding the hotkey. Quick and precise input.</p>
+                <img src="character.svg" alt="" class="feature-character character-small character-flip" style="animation-delay: -0.3s;">
             </div>
         </div>
     </section>
@@ -627,7 +863,7 @@
         <div class="demo-content">
             <div class="section-header">
                 <h2>How It Works</h2>
-                <p>3ステップで音声入力</p>
+                <p>Voice input in 3 steps / 3ステップで音声入力</p>
             </div>
             <div class="demo-window">
                 <div class="demo-header">
@@ -639,22 +875,22 @@
                     <div class="demo-step">
                         <div class="step-number">1</div>
                         <div class="step-content">
-                            <h4>ホットキーを押す</h4>
-                            <p>デフォルトは <code>⌘ + Shift</code> を長押し。猫の髭が現れます。</p>
+                            <h4>Press Hotkey</h4>
+                            <p>Hold <code>⌘ + Shift</code> (default). Cat whiskers appear.</p>
                         </div>
                     </div>
                     <div class="demo-step">
                         <div class="step-number">2</div>
                         <div class="step-content">
-                            <h4>話す</h4>
-                            <p>マイクに向かって話します。髭が声に反応してピクピク動きます。</p>
+                            <h4>Speak</h4>
+                            <p>Talk to your mic. Whiskers twitch in response to your voice.</p>
                         </div>
                     </div>
                     <div class="demo-step">
                         <div class="step-number">3</div>
                         <div class="step-content">
-                            <h4>キーを離す</h4>
-                            <p>Gemini APIが音声を処理し、テキストが挿入されます。</p>
+                            <h4>Release Key</h4>
+                            <p>Gemini API processes your voice and inserts the text.</p>
                         </div>
                     </div>
                 </div>
@@ -665,50 +901,43 @@
     <section class="rules" id="rules">
         <div class="section-header">
             <h2>Voice Rules</h2>
-            <p>トリガーワードで様々なアクション</p>
+            <p>Say a trigger word to transform your text<br>トリガーワードで様々なアクション</p>
         </div>
         <div class="rules-grid">
             <div class="rule-item">
-                <span class="rule-trigger">英語</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">選択テキストを英語に翻訳</span>
+                <span class="rule-trigger">英語 / English</span>
+                <span class="rule-action">Translate to English</span>
             </div>
             <div class="rule-item">
-                <span class="rule-trigger">日本語</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">選択テキストを日本語に翻訳</span>
+                <span class="rule-trigger">日本語 / Japanese</span>
+                <span class="rule-action">Translate to Japanese</span>
             </div>
             <div class="rule-item">
                 <span class="rule-trigger">ビジネスメール</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">ビジネスメール形式に変換</span>
+                <span class="rule-action">Business email style</span>
             </div>
             <div class="rule-item">
-                <span class="rule-trigger">カジュアル</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">カジュアルな文体に変換</span>
+                <span class="rule-trigger">カジュアル / Casual</span>
+                <span class="rule-action">Casual tone</span>
             </div>
             <div class="rule-item">
-                <span class="rule-trigger">要約</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">テキストを要約</span>
+                <span class="rule-trigger">要約 / Summarize</span>
+                <span class="rule-action">Summarize text</span>
             </div>
             <div class="rule-item">
-                <span class="rule-trigger">箇条書き</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">箇条書きリストに変換</span>
+                <span class="rule-trigger">箇条書き / Bullet</span>
+                <span class="rule-action">Convert to bullet list</span>
             </div>
             <div class="rule-item">
-                <span class="rule-trigger">コマンド</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">zshコマンドを生成</span>
+                <span class="rule-trigger">コマンド / Command</span>
+                <span class="rule-action">Generate zsh command</span>
             </div>
             <div class="rule-item">
                 <span class="rule-trigger">markdown</span>
-                <span class="rule-arrow">→</span>
-                <span class="rule-action">Markdown形式に整形</span>
+                <span class="rule-action">Format as Markdown</span>
             </div>
         </div>
+        <img src="character.svg" alt="" class="rules-character character">
     </section>
 
     <footer>
@@ -722,7 +951,10 @@
                 <a href="https://github.com/nyanko3141592/WhiskrIO/releases">Releases</a>
                 <a href="https://github.com/nyanko3141592/WhiskrIO/issues">Issues</a>
             </div>
-            <p class="footer-copy">© 2024 WhiskrIO. MIT License.</p>
+            <p class="footer-copy">© 2026 WhiskrIO. MIT License. / MITライセンス</p>
+            <div class="footer-character">
+                <img src="character.svg" alt="" class="character character-medium">
+            </div>
         </div>
     </footer>
 
@@ -737,13 +969,9 @@
             });
         });
 
-        // Cat Face Canvas Animation - matching OverlayWindow.swift
+        // Cat Face Canvas Animation
         const canvas = document.getElementById('catCanvas');
         const ctx = canvas.getContext('2d');
-
-        // SVG dimensions from Swift code
-        const svgWidth = 949;
-        const svgHeight = 362;
 
         // Colors
         const catFaceColor = '#2CD8F6';
@@ -754,12 +982,18 @@
         const maxLevels = 12;
         let levels = new Array(maxLevels).fill(0);
 
-        // Simulate audio levels for demo
+        // Load whisker pad SVG
+        const whiskerPadImg = new Image();
+        whiskerPadImg.src = 'whisker-pad.svg';
+
+        // Simulate gentle audio levels
         function simulateAudioLevel() {
-            // Random level with some smoothing
-            const target = Math.random() * 0.8 + 0.2;
+            // Gentler, slower changes
+            const current = levels[levels.length - 1];
+            const target = Math.random() * 0.5 + 0.1;
+            const smoothed = current * 0.7 + target * 0.3;
             levels.shift();
-            levels.push(target);
+            levels.push(smoothed);
         }
 
         function drawCatFace() {
@@ -777,85 +1011,62 @@
             ctx.roundRect(0, 0, width, height, height / 2);
             ctx.fill();
 
-            // Calculate scale to fit SVG face
-            const scale = height / svgHeight;
-            const faceWidth = svgWidth * scale;
-            const faceHeight = svgHeight * scale;
-            const faceX = centerX - faceWidth / 2;
-            const faceY = centerY - faceHeight / 2;
+            // Draw whiskers (behind face)
+            drawWhiskers(centerX, centerY, true);  // Left
+            drawWhiskers(centerX, centerY, false); // Right
 
-            // Draw whiskers first (behind face)
-            const avgLevel = levels.reduce((a, b) => a + b, 0) / levels.length;
-            drawWhiskers(centerX, centerY, true, avgLevel);  // Left
-            drawWhiskers(centerX, centerY, false, avgLevel); // Right
-
-            // Draw white face (ellipse approximation of the SVG path)
-            ctx.save();
-            ctx.translate(faceX, faceY);
-            ctx.scale(scale, scale);
-
-            // Face path (white) - from Swift CGPath
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.moveTo(948.155, 232.922);
-            ctx.bezierCurveTo(948.155, 353.187, 474.078, 460.555, 474.078, 203.798);
-            ctx.bezierCurveTo(474.078, 457.853, 0, 353.187, 0, 232.922);
-            ctx.bezierCurveTo(0, 112.658, 212.252, 15.1642, 474.078, 15.1642);
-            ctx.bezierCurveTo(735.903, 15.1642, 948.155, 112.658, 948.155, 232.922);
-            ctx.closePath();
-            ctx.fill();
-
-            // Nose path (pink) - from Swift CGPath
-            ctx.fillStyle = noseColor;
-            ctx.beginPath();
-            ctx.moveTo(581.237, 0.0376474);
-            ctx.bezierCurveTo(657.641, -3.14584, 523.188, 196.629, 472.756, 196.629);
-            ctx.bezierCurveTo(422.324, 196.629, 304.257, 0.0376474, 357.395, 0.0376474);
-            ctx.bezierCurveTo(410.533, 0.0376474, 552.339, 1.24176, 581.237, 0.0376474);
-            ctx.closePath();
-            ctx.fill();
-
-            ctx.restore();
+            // Draw whisker pad SVG
+            if (whiskerPadImg.complete) {
+                const padWidth = 80;
+                const padHeight = padWidth * (362 / 949);
+                ctx.drawImage(
+                    whiskerPadImg,
+                    centerX - padWidth / 2,
+                    centerY - padHeight / 2,
+                    padWidth,
+                    padHeight
+                );
+            }
         }
 
-        function drawWhiskers(centerX, centerY, isLeft, avgLevel) {
-            const whiskerCount = 2;
+        function drawWhiskers(centerX, centerY, isLeft) {
+            const whiskerCount = 3;
             const whiskerSpacing = 5;
-            const baseLength = 37;
-            const whiskerStartX = isLeft ? centerX - 14 : centerX + 14;
+            const baseLength = 42;
+            const whiskerStartX = isLeft ? centerX - 16 : centerX + 16;
 
             for (let i = 0; i < whiskerCount; i++) {
-                // Vertical position
-                const verticalOffset = i * whiskerSpacing - whiskerSpacing / 2;
-                const startY = centerY + verticalOffset - 1;
+                // Vertical position (top, middle, bottom)
+                const verticalOffset = (i - 1) * whiskerSpacing;
+                const startY = centerY + verticalOffset;
 
-                // Get level for this whisker
-                const levelIndex = isLeft ? (whiskerCount - 1 - i) : (maxLevels - whiskerCount + i);
+                // Get level for this whisker (gentler response)
+                const levelIndex = isLeft ? i : (maxLevels - 1 - i);
                 const level = levels[Math.min(levelIndex, levels.length - 1)];
 
-                // Whisker length varies with level
-                const whiskerLength = baseLength + level * 18;
+                // Whisker length varies with level (smaller variation)
+                const whiskerLength = baseLength + level * 8;
 
-                // Angle calculation
+                // Angle calculation - spread out from center
                 const baseAngle = isLeft ? Math.PI : 0;
-                const degrees10 = 10 * Math.PI / 180;
-                const spreadAngle = (i === 0 ? -degrees10 : degrees10) * (isLeft ? -1 : 1);
-                const waveAngle = level > 0.05 ? Math.sin(animationPhase + i * 0.8) * 0.3 * level : 0;
+                const spreadDegrees = (i - 1) * 10; // -10, 0, 10 degrees
+                const spreadAngle = spreadDegrees * Math.PI / 180 * (isLeft ? 1 : -1);
+                // Gentler wave (reduced amplitude)
+                const waveAngle = level > 0.05 ? Math.sin(animationPhase + i * 0.5) * 0.12 * level : 0;
                 const angle = baseAngle + spreadAngle + waveAngle;
 
                 // End point
                 const endX = whiskerStartX + Math.cos(angle) * whiskerLength;
-                const endY = startY + Math.sin(angle) * whiskerLength * 0.35;
+                const endY = startY + Math.sin(angle) * whiskerLength * 0.2;
 
-                // Control point for curve
-                const waveOffset = level > 0.05 ? Math.sin(animationPhase * 1.5 + i * 1.2) * level * 12 : 0;
+                // Control point for curve (gentler wave)
+                const waveOffset = level > 0.05 ? Math.sin(animationPhase * 0.8 + i * 0.8) * level * 4 : 0;
                 const ctrlX = (whiskerStartX + endX) / 2;
                 const ctrlY = startY + waveOffset;
 
                 // Draw whisker
-                const intensity = 0.7 + level * 0.3;
-                ctx.strokeStyle = `rgba(0, 0, 0, ${intensity})`;
-                ctx.lineWidth = 1.5 - Math.abs(i - 1) * 0.15 + level * 0.2;
+                ctx.strokeStyle = `rgba(0, 0, 0, 0.85)`;
+                ctx.lineWidth = 1.8 - Math.abs(i - 1) * 0.2;
                 ctx.lineCap = 'round';
 
                 ctx.beginPath();
@@ -867,13 +1078,15 @@
 
         function animate() {
             simulateAudioLevel();
-            animationPhase += 0.25;
+            animationPhase += 0.08; // Slower animation
             drawCatFace();
             requestAnimationFrame(animate);
         }
 
-        // Start animation
-        animate();
+        // Start animation when image loads
+        whiskerPadImg.onload = animate;
+        // Fallback if already cached
+        if (whiskerPadImg.complete) animate();
     </script>
 </body>
 </html>
