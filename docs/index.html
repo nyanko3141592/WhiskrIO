@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhiskrIO - AI Voice Input for macOS</title>
+    <meta name="description" content="Google Gemini APIを使用したmacOS向け音声入力アプリ。話すだけでテキスト入力、翻訳、コマンド生成。">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2CD8F6;
+            --accent: #FF6B35;
+            --nose-pink: #EA808C;
+            --bg-dark: #0a0a0f;
+            --bg-card: #12121a;
+            --text: #ffffff;
+            --text-secondary: #8b8b9a;
+            --gradient-1: linear-gradient(135deg, #2CD8F6 0%, #667eea 100%);
+            --gradient-2: linear-gradient(135deg, #FF6B35 0%, #f093fb 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Animated background */
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 20%, rgba(44, 216, 246, 0.08) 0%, transparent 40%),
+                        radial-gradient(circle at 70% 80%, rgba(255, 107, 53, 0.06) 0%, transparent 40%);
+            animation: bgMove 20s ease-in-out infinite;
+        }
+
+        @keyframes bgMove {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            50% { transform: translate(-5%, -5%) rotate(5deg); }
+        }
+
+        /* Header */
+        header {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            padding: 1.5rem 2rem;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            background: rgba(10, 10, 15, 0.8);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        nav {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .github-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1.2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .github-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: var(--primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8rem 2rem 4rem;
+            text-align: center;
+        }
+
+        .hero-content {
+            max-width: 900px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(44, 216, 246, 0.1);
+            border: 1px solid rgba(44, 216, 246, 0.3);
+            border-radius: 50px;
+            font-size: 0.875rem;
+            color: var(--primary);
+            margin-bottom: 2rem;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(135deg, #fff 0%, #2CD8F6 50%, #FF6B35 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto 3rem;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            background: var(--gradient-1);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 20px rgba(44, 216, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(44, 216, 246, 0.4);
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem 2rem;
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            background: rgba(44, 216, 246, 0.1);
+        }
+
+        /* Cat Face Animation */
+        .cat-demo {
+            margin-top: 4rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .cat-face-container {
+            position: relative;
+            width: 200px;
+            height: 60px;
+            background: var(--primary);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 40px rgba(44, 216, 246, 0.3);
+        }
+
+        .whisker {
+            position: absolute;
+            width: 50px;
+            height: 2px;
+            background: #000;
+            border-radius: 2px;
+            transform-origin: center;
+            animation: whiskerWave 1.5s ease-in-out infinite;
+        }
+
+        .whisker-left-1 { left: 10px; top: 22px; transform: rotate(-10deg); animation-delay: 0s; }
+        .whisker-left-2 { left: 10px; top: 32px; transform: rotate(10deg); animation-delay: 0.2s; }
+        .whisker-right-1 { right: 10px; top: 22px; transform: rotate(10deg); animation-delay: 0.1s; }
+        .whisker-right-2 { right: 10px; top: 32px; transform: rotate(-10deg); animation-delay: 0.3s; }
+
+        @keyframes whiskerWave {
+            0%, 100% { transform: rotate(var(--base-angle, 0deg)) scaleX(1); }
+            50% { transform: rotate(calc(var(--base-angle, 0deg) + 5deg)) scaleX(1.1); }
+        }
+
+        .whisker-left-1 { --base-angle: -10deg; }
+        .whisker-left-2 { --base-angle: 10deg; }
+        .whisker-right-1 { --base-angle: 10deg; }
+        .whisker-right-2 { --base-angle: -10deg; }
+
+        .cat-nose {
+            width: 30px;
+            height: 20px;
+            background: var(--nose-pink);
+            border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%;
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-header h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 1.125rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(44, 216, 246, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--gradient-1);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Demo Section */
+        .demo {
+            padding: 6rem 2rem;
+            background: linear-gradient(180deg, transparent 0%, rgba(44, 216, 246, 0.03) 50%, transparent 100%);
+        }
+
+        .demo-content {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .demo-window {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .demo-header {
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .demo-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .demo-dot.red { background: #ff5f57; }
+        .demo-dot.yellow { background: #ffbd2e; }
+        .demo-dot.green { background: #28c840; }
+
+        .demo-body {
+            padding: 2rem;
+        }
+
+        .demo-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0;
+            animation: fadeInUp 0.5s forwards;
+        }
+
+        .demo-step:nth-child(1) { animation-delay: 0.2s; }
+        .demo-step:nth-child(2) { animation-delay: 0.4s; }
+        .demo-step:nth-child(3) { animation-delay: 0.6s; }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step-number {
+            width: 32px;
+            height: 32px;
+            background: var(--gradient-1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .step-content h4 {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .step-content p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        .step-content code {
+            display: inline-block;
+            background: rgba(44, 216, 246, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 0.875rem;
+            color: var(--primary);
+            margin-top: 0.5rem;
+        }
+
+        /* Rules Section */
+        .rules {
+            padding: 6rem 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .rules-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .rule-item {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.3s;
+        }
+
+        .rule-item:hover {
+            border-color: rgba(255, 107, 53, 0.3);
+            transform: translateX(5px);
+        }
+
+        .rule-trigger {
+            background: var(--gradient-2);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            white-space: nowrap;
+        }
+
+        .rule-arrow {
+            color: var(--text-secondary);
+        }
+
+        .rule-action {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        /* Footer */
+        footer {
+            padding: 4rem 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+        }
+
+        .footer-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover {
+            color: var(--primary);
+        }
+
+        .footer-copy {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero p {
+                font-size: 1rem;
+            }
+
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-animation"></div>
+
+    <header>
+        <nav>
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 100 40" fill="none">
+                    <ellipse cx="50" cy="20" rx="48" ry="18" fill="#2CD8F6"/>
+                    <ellipse cx="50" cy="20" rx="40" ry="14" fill="white"/>
+                    <path d="M55 8 Q50 22 45 8" fill="#EA808C"/>
+                    <line x1="10" y1="15" x2="35" y2="18" stroke="black" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="10" y1="25" x2="35" y2="22" stroke="black" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="90" y1="15" x2="65" y2="18" stroke="black" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="90" y1="25" x2="65" y2="22" stroke="black" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                WhiskrIO
+            </div>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#demo">Demo</a></li>
+                <li><a href="#rules">Rules</a></li>
+            </ul>
+            <a href="https://github.com/nyanko3141592/WhiskrIO" class="github-btn" target="_blank">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                GitHub
+            </a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span>🎤</span>
+                <span>Powered by Google Gemini</span>
+            </div>
+            <h1>Voice to Text,<br>Reimagined.</h1>
+            <p>macOS向けAI音声入力アプリ。話すだけでテキスト入力、翻訳、コマンド生成。猫の髭が声に合わせて動く、かわいいインジケーター付き。</p>
+            <div class="hero-buttons">
+                <a href="https://github.com/nyanko3141592/WhiskrIO/releases" class="btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Download for macOS
+                </a>
+                <a href="https://github.com/nyanko3141592/WhiskrIO" class="btn-secondary">
+                    View on GitHub
+                </a>
+            </div>
+            <div class="cat-demo">
+                <div class="cat-face-container">
+                    <div class="whisker whisker-left-1"></div>
+                    <div class="whisker whisker-left-2"></div>
+                    <div class="whisker whisker-right-1"></div>
+                    <div class="whisker whisker-right-2"></div>
+                    <div class="cat-nose"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <div class="section-header">
+            <h2>Powerful Features</h2>
+            <p>シンプルなのに、できることがたくさん</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🎙️</div>
+                <h3>高精度な文字起こし</h3>
+                <p>Gemini APIによる高精度な音声認識。日本語・英語どちらも対応。フィラーワードを自動除去。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>選択テキスト編集</h3>
+                <p>テキストを選択して話すだけ。「英語」で翻訳、「ビジネスメール」で文体変換。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⌨️</div>
+                <h3>コマンド生成</h3>
+                <p>「コマンド」と言ってから指示するだけで、zshコマンドを自動生成。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📸</div>
+                <h3>画面コンテキスト</h3>
+                <p>カーソル周辺のスクリーンショットを送信し、文脈を理解した入力が可能。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🐱</div>
+                <h3>かわいいインジケーター</h3>
+                <p>録音中は猫の髭が声に合わせてアニメーション。見ていて楽しい。</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>Push to Talk</h3>
+                <p>ホットキーを押している間だけ録音。素早く、確実に入力。</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="demo" id="demo">
+        <div class="demo-content">
+            <div class="section-header">
+                <h2>How It Works</h2>
+                <p>3ステップで音声入力</p>
+            </div>
+            <div class="demo-window">
+                <div class="demo-header">
+                    <div class="demo-dot red"></div>
+                    <div class="demo-dot yellow"></div>
+                    <div class="demo-dot green"></div>
+                </div>
+                <div class="demo-body">
+                    <div class="demo-step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>ホットキーを押す</h4>
+                            <p>デフォルトは <code>⌘ + Shift</code> を長押し。猫の髭が現れます。</p>
+                        </div>
+                    </div>
+                    <div class="demo-step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>話す</h4>
+                            <p>マイクに向かって話します。髭が声に反応してピクピク動きます。</p>
+                        </div>
+                    </div>
+                    <div class="demo-step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>キーを離す</h4>
+                            <p>Gemini APIが音声を処理し、テキストが挿入されます。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="rules" id="rules">
+        <div class="section-header">
+            <h2>Voice Rules</h2>
+            <p>トリガーワードで様々なアクション</p>
+        </div>
+        <div class="rules-grid">
+            <div class="rule-item">
+                <span class="rule-trigger">英語</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">選択テキストを英語に翻訳</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">日本語</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">選択テキストを日本語に翻訳</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">ビジネスメール</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">ビジネスメール形式に変換</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">カジュアル</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">カジュアルな文体に変換</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">要約</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">テキストを要約</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">箇条書き</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">箇条書きリストに変換</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">コマンド</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">zshコマンドを生成</span>
+            </div>
+            <div class="rule-item">
+                <span class="rule-trigger">markdown</span>
+                <span class="rule-arrow">→</span>
+                <span class="rule-action">Markdown形式に整形</span>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo">
+                <svg width="30" height="12" viewBox="0 0 100 40" fill="none">
+                    <ellipse cx="50" cy="20" rx="48" ry="18" fill="#2CD8F6"/>
+                    <ellipse cx="50" cy="20" rx="40" ry="14" fill="white"/>
+                    <path d="M55 8 Q50 22 45 8" fill="#EA808C"/>
+                </svg>
+                WhiskrIO
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/nyanko3141592/WhiskrIO">GitHub</a>
+                <a href="https://github.com/nyanko3141592/WhiskrIO/releases">Releases</a>
+                <a href="https://github.com/nyanko3141592/WhiskrIO/issues">Issues</a>
+            </div>
+            <p class="footer-copy">© 2024 WhiskrIO. MIT License.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                document.querySelector(this.getAttribute('href')).scrollIntoView({
+                    behavior: 'smooth'
+                });
+            });
+        });
+
+        // Animate whiskers on scroll
+        const whiskers = document.querySelectorAll('.whisker');
+        let phase = 0;
+
+        setInterval(() => {
+            phase += 0.1;
+            whiskers.forEach((whisker, i) => {
+                const wave = Math.sin(phase + i * 0.5) * 3;
+                const baseAngle = whisker.classList.contains('whisker-left-1') ? -10 :
+                                 whisker.classList.contains('whisker-left-2') ? 10 :
+                                 whisker.classList.contains('whisker-right-1') ? 10 : -10;
+                whisker.style.transform = `rotate(${baseAngle + wave}deg)`;
+            });
+        }, 50);
+    </script>
+</body>
+</html>
