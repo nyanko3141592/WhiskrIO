@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14  # Apple Silicon runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build Release
+        working-directory: WhiskrIO
+        run: |
+          echo "🐱 Building WhiskrIO..."
+
+          # Clean and build release
+          swift package clean
+          swift build -c release
+
+          # Create .app bundle
+          echo "📁 Creating .app bundle..."
+          mkdir -p WhiskrIO.app/Contents/{MacOS,Resources}
+
+          # Copy binary
+          cp .build/release/WhiskrIO WhiskrIO.app/Contents/MacOS/
+
+          # Copy icon
+          cp Resources/AppIcon.icns WhiskrIO.app/Contents/Resources/
+
+          # Copy sounds if available
+          if [ -d "Resources/Sounds" ] && [ "$(ls -A Resources/Sounds 2>/dev/null)" ]; then
+            mkdir -p WhiskrIO.app/Contents/Resources/Sounds
+            cp Resources/Sounds/*.m4a WhiskrIO.app/Contents/Resources/Sounds/ 2>/dev/null || true
+          fi
+
+          # Create Info.plist with version from tag
+          VERSION=${GITHUB_REF_NAME#v}
+          cat > WhiskrIO.app/Contents/Info.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleDevelopmentRegion</key>
+              <string>en</string>
+              <key>CFBundleExecutable</key>
+              <string>WhiskrIO</string>
+              <key>CFBundleIdentifier</key>
+              <string>io.whiskr.app</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>CFBundleName</key>
+              <string>WhiskrIO</string>
+              <key>CFBundleIconFile</key>
+              <string>AppIcon</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${VERSION}</string>
+              <key>CFBundleVersion</key>
+              <string>${VERSION}</string>
+              <key>LSApplicationCategoryType</key>
+              <string>public.app-category.productivity</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>13.0</string>
+              <key>LSUIElement</key>
+              <true/>
+              <key>NSMicrophoneUsageDescription</key>
+              <string>WhiskrIO needs microphone access for voice input.</string>
+              <key>NSAccessibilityUsageDescription</key>
+              <string>WhiskrIO needs accessibility access to insert text.</string>
+              <key>NSScreenCaptureUsageDescription</key>
+              <string>WhiskrIO needs screen capture access for context-aware input.</string>
+          </dict>
+          </plist>
+          EOF
+
+          # Sign the app (ad-hoc for now)
+          codesign --force --deep --sign - WhiskrIO.app
+
+          # Make executable
+          chmod +x WhiskrIO.app/Contents/MacOS/WhiskrIO
+
+          echo "✅ Build complete!"
+
+      - name: Create ZIP
+        working-directory: WhiskrIO
+        run: |
+          zip -r WhiskrIO-${{ github.ref_name }}.zip WhiskrIO.app
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: WhiskrIO/WhiskrIO-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
