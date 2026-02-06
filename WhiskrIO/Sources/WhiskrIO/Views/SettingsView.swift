@@ -1,4 +1,6 @@
 import SwiftUI
+import AVFoundation
+import ApplicationServices
 
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager.shared
@@ -478,6 +480,44 @@ struct SettingsView: View {
     private var advancedSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                // 権限
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("権限")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        // マイク権限
+                        PermissionRow(
+                            icon: "mic.fill",
+                            title: "マイク",
+                            description: "音声入力に必要です",
+                            isGranted: checkMicrophonePermission(),
+                            onRequest: requestMicrophonePermission
+                        )
+
+                        // アクセシビリティ権限
+                        PermissionRow(
+                            icon: "keyboard",
+                            title: "アクセシビリティ",
+                            description: "テキスト入力に必要です",
+                            isGranted: checkAccessibilityPermission(),
+                            onRequest: requestAccessibilityPermission
+                        )
+
+                        // 画面収録権限
+                        PermissionRow(
+                            icon: "rectangle.dashed.and.paperclip",
+                            title: "画面収録",
+                            description: "スクリーンショット送信に必要です",
+                            isGranted: ScreenshotManager.shared.hasScreenRecordingPermission(),
+                            onRequest: { ScreenshotManager.shared.requestScreenRecordingPermission() }
+                        )
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
                 // 文字起こしプロンプト
                 VStack(alignment: .leading, spacing: 12) {
                     Text("文字起こしプロンプト")
@@ -606,6 +646,34 @@ struct SettingsView: View {
                 try? FileManager.default.removeItem(at: file)
             }
         }
+    }
+
+    // MARK: - Permission Helpers
+
+    private func checkMicrophonePermission() -> Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
+    private func requestMicrophonePermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { _ in }
+        case .denied, .restricted:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                NSWorkspace.shared.open(url)
+            }
+        default:
+            break
+        }
+    }
+
+    private func checkAccessibilityPermission() -> Bool {
+        AXIsProcessTrusted()
+    }
+
+    private func requestAccessibilityPermission() {
+        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as String: true]
+        AXIsProcessTrustedWithOptions(options)
     }
     
     // MARK: - History Settings
@@ -1212,5 +1280,52 @@ extension TranscriptionHistoryItem: Hashable {
 
     static func == (lhs: TranscriptionHistoryItem, rhs: TranscriptionHistoryItem) -> Bool {
         lhs.id == rhs.id
+    }
+}
+
+// MARK: - Permission Row
+
+struct PermissionRow: View {
+    let icon: String
+    let title: String
+    let description: String
+    let isGranted: Bool
+    let onRequest: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(isGranted ? .green : .orange)
+                .frame(width: 32)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(.body, weight: .medium))
+
+                Text(description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Spacer()
+
+            if isGranted {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("許可済み")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+            } else {
+                Button("許可をリクエスト") {
+                    onRequest()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
