@@ -261,6 +261,9 @@ extension AppDelegate: HotkeyDelegate {
                 self?.recordingManager?.startRecording()
                 self?.overlayWindow?.show(mode: self?.currentRecordingMode ?? .normal)
                 self?.statusBarController?.updateRecordingState(true)
+
+                // HotkeyManagerに録音が実際に開始されたことを通知
+                self?.hotkeyManager?.notifyRecordingActuallyStarted()
             }
         }
     }

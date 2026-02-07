@@ -24,6 +24,7 @@ class HotkeyManager {
     private var keyReleaseWorkItem: DispatchWorkItem?
     private var lastEventTimestamp: TimeInterval = 0  // 重複イベント対策
     private var recordingStartTime: Date?  // 録音開始時刻（短時間での停止を防ぐ）
+    private var isWaitingForRecordingStart = false  // 録音開始待ち（非同期処理中）
     
     init(delegate: HotkeyDelegate) {
         self.delegate = delegate
@@ -91,6 +92,7 @@ class HotkeyManager {
         keyReleaseWorkItem?.cancel()
         keyReleaseWorkItem = nil
         isPushToTalkKeyPressed = false
+        isWaitingForRecordingStart = false
         recordingStartTime = nil
         lastEventTimestamp = 0
     }
@@ -118,18 +120,27 @@ class HotkeyManager {
         // 状態が変化した場合のみ処理
         if isKeyPressed != isPushToTalkKeyPressed {
             if isKeyPressed {
-                // キーが押された - 即座に録音開始
+                // キーが押された - 録音開始をリクエスト
                 keyReleaseWorkItem?.cancel()
                 keyReleaseWorkItem = nil
                 isPushToTalkKeyPressed = true
-                recordingStartTime = Date()
-                print("[HotkeyManager] -> Recording STARTED")
+                isWaitingForRecordingStart = true  // 録音開始待ち状態
+                recordingStartTime = nil  // 実際に録音が開始されてから設定
+                print("[HotkeyManager] -> Recording START requested")
                 DispatchQueue.main.async { [weak self] in
                     self?.delegate?.recordingStarted()
                 }
             } else {
-                // キーが離された - 録音開始から最低0.3秒経過しているか確認
-                let minDuration: TimeInterval = 0.3
+                // キーが離された
+
+                // 録音開始待ち中（非同期処理中）の場合は無視
+                if isWaitingForRecordingStart {
+                    print("[HotkeyManager] -> Stop IGNORED (still waiting for recording to start)")
+                    return
+                }
+
+                // 録音開始から最低0.5秒経過しているか確認
+                let minDuration: TimeInterval = 0.5
                 if let startTime = recordingStartTime,
                    Date().timeIntervalSince(startTime) < minDuration {
                     print("[HotkeyManager] -> Stop IGNORED (too soon after start, \(Date().timeIntervalSince(startTime))s)")
@@ -148,9 +159,26 @@ class HotkeyManager {
         }
     }
 
+    /// 録音が実際に開始されたことを通知
+    /// AppDelegateから呼び出す
+    func notifyRecordingActuallyStarted() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.isWaitingForRecordingStart = false
+            self.recordingStartTime = Date()
+            print("[HotkeyManager] Recording actually started at \(self.recordingStartTime!)")
+        }
+    }
+
     /// キーリリースの確認と録音停止
     /// デバウンス後に実際のキー状態を再確認してから停止
     private func confirmAndStopRecording() {
+        // 録音開始待ち中は停止しない
+        if isWaitingForRecordingStart {
+            print("[HotkeyManager] confirmAndStopRecording: IGNORED (still waiting for recording to start)")
+            return
+        }
+
         let currentFlags = NSEvent.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let pushToTalkKeys = SettingsManager.shared.settings.pushToTalkKeys
         let targetFlags = pushToTalkKeys.combinedModifierFlags
@@ -162,6 +190,7 @@ class HotkeyManager {
         // 実際にキーが離されている場合のみ停止
         if !isActuallyPressed && isPushToTalkKeyPressed {
             isPushToTalkKeyPressed = false
+            isWaitingForRecordingStart = false
             recordingStartTime = nil
             print("[HotkeyManager] -> Recording STOPPED (confirmed release)")
             delegate?.recordingStopped()
@@ -175,9 +204,14 @@ class HotkeyManager {
     private func checkModifierKeysState() {
         guard isPushToTalkKeyPressed else { return }
 
-        // 録音開始から最低0.3秒は経過している必要がある
+        // 録音開始待ち中は何もしない
+        if isWaitingForRecordingStart {
+            return
+        }
+
+        // 録音開始から最低0.5秒は経過している必要がある
         if let startTime = recordingStartTime,
-           Date().timeIntervalSince(startTime) < 0.3 {
+           Date().timeIntervalSince(startTime) < 0.5 {
             return
         }
 

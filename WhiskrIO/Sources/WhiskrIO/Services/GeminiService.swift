@@ -467,15 +467,7 @@ class GeminiService {
 
         let result = try await generateContent(prompt: prompt)
 
-        // テンプレート適用（選択編集モードでは翻訳以外はテンプレート無しで出力）
-        if ruleResult.action == .translate, let template = ruleResult.template {
-            let values: [String: String] = [
-                "original": selectedText,
-                "translated": result
-            ]
-            return RuleEngine.shared.applyTemplate(template, values: values)
-        }
-
+        // 選択編集モードではテンプレートは適用しない（選択テキストを直接置き換えるため）
         return result
     }
 
