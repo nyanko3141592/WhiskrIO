@@ -309,7 +309,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("入力モード")
                         .font(.headline)
-                    
+
                     VStack(alignment: .leading, spacing: 8) {
                         Picker("モード", selection: $settingsManager.settings.pushToTalkMode) {
                             Text("Push to Talk").tag(true)
@@ -320,7 +320,7 @@ struct SettingsView: View {
                             settingsManager.saveSettings()
                             NotificationCenter.default.post(name: .updateHotkey, object: nil)
                         }
-                        
+
                         if settingsManager.settings.pushToTalkMode {
                             Text("キーを押している間だけ録音します")
                                 .font(.caption)
@@ -330,6 +330,33 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
+                // オーバーレイ位置
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("キャラクターの位置")
+                        .font(.headline)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("位置", selection: $settingsManager.settings.overlayPosition) {
+                            ForEach(OverlayPosition.allCases, id: \.self) { position in
+                                Label(position.displayName, systemImage: position.icon).tag(position)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: settingsManager.settings.overlayPosition) { _ in
+                            settingsManager.saveSettings()
+                            // オーバーレイ位置を更新
+                            NotificationCenter.default.post(name: .updateOverlayPosition, object: nil)
+                        }
+
+                        Text("録音中に表示されるキャラクターの画面上の位置を設定します")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
                     .padding(.leading, 4)
                 }
@@ -1165,6 +1192,7 @@ class HotkeyRecorderNSView: NSView {
 
 extension Notification.Name {
     static let updateHotkey = Notification.Name("updateHotkey")
+    static let updateOverlayPosition = Notification.Name("updateOverlayPosition")
 }
 
 // MARK: - Flow Layout

@@ -56,6 +56,29 @@ extension Array where Element == PushToTalkKey {
     }
 }
 
+// MARK: - Overlay Position
+enum OverlayPosition: String, Codable, CaseIterable {
+    case bottomCenter = "bottomCenter"
+    case bottomLeft = "bottomLeft"
+    case bottomRight = "bottomRight"
+
+    var displayName: String {
+        switch self {
+        case .bottomCenter: return "中央下"
+        case .bottomLeft: return "左下"
+        case .bottomRight: return "右下"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .bottomCenter: return "arrow.down"
+        case .bottomLeft: return "arrow.down.left"
+        case .bottomRight: return "arrow.down.right"
+        }
+    }
+}
+
 // MARK: - Speech Language
 enum SpeechLanguage: String, Codable, CaseIterable {
     case auto = "auto"
@@ -185,6 +208,7 @@ struct AppSettings: Codable, Equatable {
     var maxRecordingDuration: Int  // 録音時間の上限（秒）
     var captureScreenshot: Bool  // スクリーンショットを送信するか
     var captureSize: CaptureSize  // キャプチャサイズ
+    var overlayPosition: OverlayPosition  // オーバーレイの位置
 
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
@@ -204,7 +228,8 @@ struct AppSettings: Codable, Equatable {
         commandModeTriggers: ["コマンド", "command"],  // デフォルトのトリガー
         maxRecordingDuration: 60,  // デフォルト: 1分
         captureScreenshot: false,  // デフォルト: OFF（権限が必要）
-        captureSize: .medium  // デフォルト: 800×800px
+        captureSize: .medium,  // デフォルト: 800×800px
+        overlayPosition: .bottomCenter  // デフォルト: 中央下
     )
 }
 

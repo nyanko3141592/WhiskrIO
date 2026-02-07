@@ -107,11 +107,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             name: .recordingMaxDurationReached,
             object: nil
         )
+
+        // Listen for overlay position change
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOverlayPositionUpdate),
+            name: .updateOverlayPosition,
+            object: nil
+        )
+
+        // Listen for overlay dot click (Push to Talk)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOverlayRecordingStarted),
+            name: .recordingStartedFromOverlay,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleOverlayRecordingStopped),
+            name: .recordingStoppedFromOverlay,
+            object: nil
+        )
+
+        // Show idle dot
+        overlayWindow?.showIdle()
     }
 
     @objc private func handleMaxDurationReached() {
         guard let recordingManager = recordingManager, recordingManager.isRecording else { return }
         stopRecording()
+    }
+
+    @objc private func handleOverlayPositionUpdate() {
+        // オーバーレイ位置を更新（アイドル状態を再表示して位置を反映）
+        overlayWindow?.showIdle()
+    }
+
+    @objc private func handleOverlayRecordingStarted() {
+        // オーバーレイドットからのPush to Talk開始
+        recordingStarted()
+    }
+
+    @objc private func handleOverlayRecordingStopped() {
+        // オーバーレイドットからのPush to Talk停止
+        recordingStopped()
     }
     
     @objc private func handleOpenSettings() {
@@ -378,6 +418,13 @@ extension AppDelegate: HotkeyDelegate {
                 print("[AppDelegate] Transcription task was cancelled")
                 // キャンセルされた場合は何もしない
             } catch let error as GeminiError {
+                // ネットワークエラーがURLError.cancelledの場合は無視
+                if case .networkError(let underlyingError) = error,
+                   let urlError = underlyingError as? URLError,
+                   urlError.code == .cancelled {
+                    print("[AppDelegate] Network request was cancelled")
+                    return
+                }
                 DispatchQueue.main.async { [weak self] in
                     self?.currentTranscriptionTask = nil
                     self?.overlayWindow?.hide()
@@ -387,6 +434,9 @@ extension AppDelegate: HotkeyDelegate {
                         self?.showError(error)
                     }
                 }
+            } catch let urlError as URLError where urlError.code == .cancelled {
+                print("[AppDelegate] URL request was cancelled")
+                // キャンセルされた場合は何もしない
             } catch {
                 DispatchQueue.main.async { [weak self] in
                     self?.currentTranscriptionTask = nil

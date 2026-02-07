@@ -24,16 +24,28 @@ extension Color {
 class OverlayWindow: NSWindow {
     private var containerView: NSView?
     private var catFaceView: CatFaceView?
+    private var idleCatView: IdleCatView?
     weak var recordingManagerRef: RecordingManager?
     private var updateTimer: Timer?
     private let silenceThreshold: Float = -45.0
     private let maxLevel: Float = -15.0
     private var debugLogCounter: Int = 0
     private var currentMode: RecordingMode = .normal
+    private var isIdle: Bool = true
+
+    // マウスアップ検出用モニター
+    private var mouseUpMonitor: Any?
+    private var isRecordingFromClick: Bool = false
+
+    // サイズ定数（SVG比率 1005:757 ≈ 1.33:1 + ジャンプ余白）
+    private let idleWidth: CGFloat = 50
+    private let idleHeight: CGFloat = 42  // 上に余白を確保
+    private let recordingWidth: CGFloat = 120
+    private let recordingHeight: CGFloat = 30
 
     init() {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 120, height: 30),
+            contentRect: NSRect(x: 0, y: 0, width: 50, height: 42),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -43,15 +55,59 @@ class OverlayWindow: NSWindow {
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = true
-        self.ignoresMouseEvents = true
+        self.ignoresMouseEvents = false  // マウスイベントを受け付ける
         self.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 
-        setupUI()
+        setupIdleUI()
     }
 
-    private func setupUI() {
+    /// クリックによる録音開始時にグローバルマウスモニターを設定
+    func startMouseUpMonitoring() {
+        isRecordingFromClick = true
+        // 既存のモニターを解除
+        if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+        // グローバルマウスアップモニターを設定
+        mouseUpMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
+            self?.handleGlobalMouseUp()
+        }
+    }
+
+    private func handleGlobalMouseUp() {
+        guard isRecordingFromClick else { return }
+        isRecordingFromClick = false
+
+        // モニター解除
+        if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseUpMonitor = nil
+        }
+
+        // 録音停止通知
+        NotificationCenter.default.post(name: .recordingStoppedFromOverlay, object: nil)
+    }
+
+    /// モニター解除（クリーンアップ用）
+    func stopMouseUpMonitoring() {
+        isRecordingFromClick = false
+        if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseUpMonitor = nil
+        }
+    }
+
+    private func setupIdleUI() {
+        // アイドル用のミニキャラクター
+        let catView = IdleCatView(frame: NSRect(x: 0, y: 0, width: idleWidth, height: idleHeight))
+        idleCatView = catView
+        self.contentView = catView
+        self.setContentSize(NSSize(width: idleWidth, height: idleHeight))
+    }
+
+    private func setupRecordingUI() {
         // Container with cyan background
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 120, height: 30))
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: recordingWidth, height: recordingHeight))
         container.wantsLayer = true
         container.layer?.cornerRadius = 15
         container.layer?.masksToBounds = true
@@ -59,31 +115,59 @@ class OverlayWindow: NSWindow {
         containerView = container
 
         // Cat face view (mouth + whiskers)
-        let catFace = CatFaceView(frame: NSRect(x: 0, y: 0, width: 120, height: 30))
+        let catFace = CatFaceView(frame: NSRect(x: 0, y: 0, width: recordingWidth, height: recordingHeight))
         catFaceView = catFace
         container.addSubview(catFace)
 
         self.contentView = container
-        self.setContentSize(NSSize(width: 120, height: 30))
+        self.setContentSize(NSSize(width: recordingWidth, height: recordingHeight))
+    }
+
+    /// アイドル状態を表示（常駐ミニキャラクター）
+    func showIdle() {
+        isIdle = true
+        updateTimer?.invalidate()
+        updateTimer = nil
+
+        // マウスモニター解除
+        stopMouseUpMonitoring()
+
+        // アイドルUIに切り替え（アニメーション停止）
+        setupIdleUI()
+        idleCatView?.stopBouncing()
+        self.ignoresMouseEvents = false
+
+        // 設定に応じた位置に配置
+        let size = NSSize(width: idleWidth, height: idleHeight)
+        let position = calculatePosition(for: size)
+        self.setFrame(NSRect(origin: position, size: size), display: true)
+
+        self.orderFrontRegardless()
     }
 
     func show(mode: RecordingMode = .normal) {
         let shouldShow = SettingsManager.shared.settings.showOverlay
         guard shouldShow else { return }
 
+        isIdle = false
         currentMode = mode
+
+        // クリック録音でない場合（キーボードPush to Talk）はモニター解除
+        // クリック録音の場合は startMouseUpMonitoring() で設定済み
+        if !isRecordingFromClick {
+            stopMouseUpMonitoring()
+        }
+
+        // 録音UIに切り替え
+        setupRecordingUI()
         catFaceView?.reset()
         updateModeColor(for: mode)
+        self.ignoresMouseEvents = true  // 録音中はマウスイベント無視
 
-        // Position at bottom center of screen
-        if let screen = NSScreen.main {
-            let screenFrame = screen.visibleFrame
-            let windowWidth: CGFloat = 120
-            let windowHeight: CGFloat = 30
-            let x = screenFrame.midX - windowWidth / 2
-            let y: CGFloat = 60
-            self.setFrame(NSRect(x: x, y: y, width: windowWidth, height: windowHeight), display: true)
-        }
+        // 設定に応じた位置に配置
+        let size = NSSize(width: recordingWidth, height: recordingHeight)
+        let position = calculatePosition(for: size)
+        self.setFrame(NSRect(origin: position, size: size), display: true)
 
         self.orderFrontRegardless()
 
@@ -103,14 +187,57 @@ class OverlayWindow: NSWindow {
         }
     }
 
+    /// オーバーレイの位置を計算
+    private func calculatePosition(for size: NSSize) -> NSPoint {
+        guard let screen = NSScreen.main else {
+            return NSPoint(x: 0, y: 60)
+        }
+
+        let screenFrame = screen.visibleFrame
+        let position = SettingsManager.shared.settings.overlayPosition
+        let margin: CGFloat = 30  // 画面端からの余白
+
+        let y: CGFloat = 60
+
+        switch position {
+        case .bottomCenter:
+            return NSPoint(x: screenFrame.midX - size.width / 2, y: y)
+        case .bottomLeft:
+            return NSPoint(x: screenFrame.minX + margin, y: y)
+        case .bottomRight:
+            return NSPoint(x: screenFrame.maxX - size.width - margin, y: y)
+        }
+    }
+
+    /// 録音/処理完了後、アイドル状態に戻る
     func hide() {
+        updateTimer?.invalidate()
+        updateTimer = nil
+        showIdle()
+    }
+
+    /// 完全に非表示にする（アプリ終了時など）
+    func hideCompletely() {
         updateTimer?.invalidate()
         updateTimer = nil
         self.orderOut(nil)
     }
 
     func showProcessing() {
-        catFaceView?.isProcessing = true
+        isIdle = false
+        updateTimer?.invalidate()
+
+        // アイドルUI（ミニキャラクター）に切り替え、アニメーション開始
+        setupIdleUI()
+        idleCatView?.startBouncing()
+        self.ignoresMouseEvents = true  // 処理中はクリック無効
+
+        // 設定に応じた位置に配置
+        let size = NSSize(width: idleWidth, height: idleHeight)
+        let position = calculatePosition(for: size)
+        self.setFrame(NSRect(origin: position, size: size), display: true)
+
+        self.orderFrontRegardless()
     }
 
     private func updateWaveform() {
@@ -136,6 +263,208 @@ class OverlayWindow: NSWindow {
 
         catFaceView.addLevel(normalizedLevel)
     }
+}
+
+// MARK: - Idle Cat View (常駐ミニキャラクター)
+
+class IdleCatView: NSView {
+    // SVG原寸サイズ
+    private let svgWidth: CGFloat = 1005
+    private let svgHeight: CGFloat = 757
+
+    // アニメーション用
+    private var animationTimer: Timer?
+    private var animationPhase: CGFloat = 0
+    private var isBouncing: Bool = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+    }
+
+    func startBouncing() {
+        isBouncing = true
+        animationPhase = 0
+        animationTimer?.invalidate()
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { [weak self] _ in
+            self?.animationPhase += 0.15
+            self?.needsDisplay = true
+        }
+    }
+
+    func stopBouncing() {
+        isBouncing = false
+        animationTimer?.invalidate()
+        animationTimer = nil
+        animationPhase = 0
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+
+        // 描画領域（上部に余白を確保、下寄せ）
+        let drawHeight: CGFloat = 30  // 実際のキャラクターの高さ
+        let drawWidth: CGFloat = 40   // 実際のキャラクターの幅
+
+        // アスペクト比を維持してスケール
+        let scaleX = drawWidth / svgWidth
+        let scaleY = drawHeight / svgHeight
+        let scale = min(scaleX, scaleY)
+
+        let scaledWidth = svgWidth * scale
+        let scaledHeight = svgHeight * scale
+
+        // 下寄せ・中央配置
+        var offsetX = (bounds.width - scaledWidth) / 2
+        var offsetY: CGFloat = 0  // 下寄せ
+
+        // バウンスアニメーション（左右揺れ + ジャンプ）
+        if isBouncing {
+            // 左右揺れ（sin波）
+            let swayAmount: CGFloat = 3.0
+            offsetX += sin(animationPhase) * swayAmount
+
+            // ジャンプ（abs(sin)で常に上向き）
+            let jumpAmount: CGFloat = 8.0
+            let jumpPhase = animationPhase * 1.5  // ジャンプは少し速く
+            offsetY += abs(sin(jumpPhase)) * jumpAmount
+        }
+
+        context.saveGState()
+
+        // 下寄せ配置 + Y軸反転
+        context.translateBy(x: offsetX, y: offsetY + scaledHeight)
+        context.scaleBy(x: scale, y: -scale)
+
+        // シアンの背景（猫の輪郭）
+        let facePath = CGMutablePath()
+        facePath.move(to: CGPoint(x: 990.046, y: 337.253))
+        facePath.addCurve(
+            to: CGPoint(x: 464.99, y: 755.938),
+            control1: CGPoint(x: 1045.53, y: 610.755),
+            control2: CGPoint(x: 957.145, y: 765.957)
+        )
+        facePath.addCurve(
+            to: CGPoint(x: 40.459, y: 250.008),
+            control1: CGPoint(x: -27.1647, y: 745.92),
+            control2: CGPoint(x: -47.5445, y: 478.343)
+        )
+        facePath.addCurve(
+            to: CGPoint(x: 416.48, y: 90.6564),
+            control1: CGPoint(x: 128.462, y: 21.6733),
+            control2: CGPoint(x: 136.113, y: -91.9074)
+        )
+        facePath.addCurve(
+            to: CGPoint(x: 990.046, y: 337.253),
+            control1: CGPoint(x: 587.464, y: -137.853),
+            control2: CGPoint(x: 949.233, y: 136.064)
+        )
+        facePath.closeSubpath()
+
+        context.setFillColor(NSColor.catFaceColor.cgColor)
+        context.addPath(facePath)
+        context.fillPath()
+
+        // 白い口周り
+        let mouthPath = CGMutablePath()
+        mouthPath.move(to: CGPoint(x: 823.584, y: 519.933))
+        mouthPath.addCurve(
+            to: CGPoint(x: 418.698, y: 519.933),
+            control1: CGPoint(x: 823.584, y: 606.938),
+            control2: CGPoint(x: 624.075, y: 768.004)
+        )
+        mouthPath.addCurve(
+            to: CGPoint(x: 107.585, y: 519.933),
+            control1: CGPoint(x: 270.926, y: 687.856),
+            control2: CGPoint(x: 107.585, y: 606.938)
+        )
+        mouthPath.addCurve(
+            to: CGPoint(x: 402.27, y: 389.808),
+            control1: CGPoint(x: 107.585, y: 432.927),
+            control2: CGPoint(x: 212.852, y: 389.808)
+        )
+        mouthPath.addCurve(
+            to: CGPoint(x: 823.584, y: 519.933),
+            control1: CGPoint(x: 591.689, y: 389.808),
+            control2: CGPoint(x: 823.584, y: 432.927)
+        )
+        mouthPath.closeSubpath()
+
+        context.setFillColor(NSColor.white.cgColor)
+        context.addPath(mouthPath)
+        context.fillPath()
+
+        // ピンクの鼻
+        let nosePath = CGMutablePath()
+        nosePath.move(to: CGPoint(x: 508.045, y: 354.633))
+        nosePath.addCurve(
+            to: CGPoint(x: 429.564, y: 496.858),
+            control1: CGPoint(x: 563.319, y: 352.33),
+            control2: CGPoint(x: 466.049, y: 496.858)
+        )
+        nosePath.addCurve(
+            to: CGPoint(x: 346.106, y: 354.633),
+            control1: CGPoint(x: 393.079, y: 496.858),
+            control2: CGPoint(x: 307.663, y: 354.633)
+        )
+        nosePath.addCurve(
+            to: CGPoint(x: 508.045, y: 354.633),
+            control1: CGPoint(x: 384.548, y: 354.633),
+            control2: CGPoint(x: 487.138, y: 355.504)
+        )
+        nosePath.closeSubpath()
+
+        context.setFillColor(NSColor.catNoseColor.cgColor)
+        context.addPath(nosePath)
+        context.fillPath()
+
+        // 髭（左上）
+        context.setStrokeColor(NSColor.black.cgColor)
+        context.setLineWidth(16)
+        context.setLineCap(.round)
+
+        context.move(to: CGPoint(x: 64.5731, y: 442.633))
+        context.addLine(to: CGPoint(x: 134.313, y: 451.071))
+        context.addLine(to: CGPoint(x: 200.741, y: 460.565))
+        context.strokePath()
+
+        // 髭（左下）
+        context.move(to: CGPoint(x: 64.5731, y: 564.77))
+        context.addLine(to: CGPoint(x: 139.417, y: 545.272))
+        context.addLine(to: CGPoint(x: 210.707, y: 523.333))
+        context.strokePath()
+
+        // 髭（右上）
+        context.move(to: CGPoint(x: 900.719, y: 422.55))
+        context.addLine(to: CGPoint(x: 795.526, y: 441.45))
+        context.addLine(to: CGPoint(x: 695.33, y: 462.716))
+        context.strokePath()
+
+        // 髭（右下）
+        context.move(to: CGPoint(x: 915.751, y: 535.302))
+        context.addLine(to: CGPoint(x: 810.558, y: 524.039))
+        context.addLine(to: CGPoint(x: 710.362, y: 511.365))
+        context.strokePath()
+
+        context.restoreGState()
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // グローバルマウスモニターを開始（ビュー切り替え後もmouseUpを検出）
+        if let overlayWindow = self.window as? OverlayWindow {
+            overlayWindow.startMouseUpMonitoring()
+        }
+        // 録音開始通知
+        NotificationCenter.default.post(name: .recordingStartedFromOverlay, object: nil)
+    }
+
+    // mouseUpはグローバルモニターで処理されるので不要
 }
 
 // MARK: - Cat Face View (SVG猫顔 + 左右の髭)
@@ -216,7 +545,7 @@ class CatFaceView: NSView {
 
             // 音量データからこの髭の波形を取得
             let levelIndex = isLeft ? (whiskerCount - 1 - i) : (maxLevels - whiskerCount + i)
-            let level = levels[min(levelIndex, levels.count - 1)]
+            let level = isProcessing ? 0.0 : levels[min(levelIndex, levels.count - 1)]
 
             // 髭の長さ（音量で変化）- 揺らぎを大きく
             let whiskerLength = baseLength + level * 18
@@ -225,7 +554,7 @@ class CatFaceView: NSView {
             let baseAngle: CGFloat = isLeft ? CGFloat.pi : 0
             let degrees10: CGFloat = 10 * .pi / 180  // 10度をラジアンに
             let spreadAngle = (i == 0 ? -degrees10 : degrees10) * (isLeft ? -1 : 1)
-            // 角度の揺れを大きく（0.1 → 0.3）
+            // 角度の揺れを大きく（0.1 → 0.3）- pondering中は静止
             let waveAngle = level > 0.05 ? sin(animationPhase + CGFloat(i) * 0.8) * 0.3 * level : 0
 
             let angle = baseAngle + spreadAngle + waveAngle
@@ -239,16 +568,9 @@ class CatFaceView: NSView {
             let ctrlX = (whiskerStartX + endX) / 2
             let ctrlY = startY + waveOffset
 
-            // 色（黒、処理中は少しグレーに変化）
-            let color: NSColor
-            if isProcessing {
-                let phase = (animationPhase + CGFloat(i) * 0.5).truncatingRemainder(dividingBy: 3.0)
-                let gray = 0.1 + phase * 0.1
-                color = NSColor(white: gray, alpha: 0.9)
-            } else {
-                let intensity = 0.7 + level * 0.3
-                color = NSColor.black.withAlphaComponent(intensity)
-            }
+            // 色（黒）
+            let intensity = 0.7 + level * 0.3
+            let color = NSColor.black.withAlphaComponent(intensity)
 
             // 髭を描画
             context.saveGState()
@@ -269,8 +591,14 @@ class CatFaceView: NSView {
     }
 
     private func drawCatFaceSVG(context: CGContext, centerX: CGFloat, centerY: CGFloat, avgLevel: CGFloat) {
-        // 固定サイズ（アニメーションなし）
-        let pulseX: CGFloat = 1.0
+        // pondering中は口をx軸方向に±5%で拡大縮小
+        let pulseX: CGFloat
+        if isProcessing {
+            // sin波で0.95〜1.05の範囲でアニメーション
+            pulseX = 1.0 + sin(animationPhase * 0.8) * 0.05
+        } else {
+            pulseX = 1.0
+        }
 
         // Y軸方向にはみ出ないようにスケール決定
         let maxHeight = bounds.height
@@ -411,5 +739,7 @@ class MenuBarRecordingView: NSView {
 
 extension Notification.Name {
     static let stopRecordingFromMenu = Notification.Name("stopRecordingFromMenu")
+    static let recordingStartedFromOverlay = Notification.Name("recordingStartedFromOverlay")
+    static let recordingStoppedFromOverlay = Notification.Name("recordingStoppedFromOverlay")
 }
 
