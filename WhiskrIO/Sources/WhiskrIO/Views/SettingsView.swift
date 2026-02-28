@@ -68,20 +68,11 @@ struct SettingsView: View {
     
     private var apiSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 // Gemini API
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Gemini API")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("APIキー")
-                            .font(.headline)
-                        
+                GroupBox(label: Label("Gemini API", systemImage: "key.fill")) {
+                    VStack(alignment: .leading, spacing: 10) {
                         HStack {
-                            // SecureFieldはペーストに問題があるためTextFieldを使用
-                            // 表示/非表示切り替えで対応
                             if showAPIKey {
                                 TextField("APIキーを入力", text: $settingsManager.settings.apiKey)
                                     .textFieldStyle(.roundedBorder)
@@ -89,23 +80,21 @@ struct SettingsView: View {
                                 SecureField("APIキーを入力", text: $settingsManager.settings.apiKey)
                                     .textFieldStyle(.roundedBorder)
                             }
-                            
-                            // 表示/非表示切り替えボタン
+
                             Button(action: { showAPIKey.toggle() }) {
                                 Image(systemName: showAPIKey ? "eye.slash" : "eye")
                                     .foregroundColor(.secondary)
                             }
                             .buttonStyle(.plain)
                             .help(showAPIKey ? "隠す" : "表示")
-                            
-                            // ペーストボタン
+
                             Button(action: pasteFromClipboard) {
                                 Image(systemName: "doc.on.clipboard")
                                     .foregroundColor(.blue)
                             }
                             .buttonStyle(.plain)
                             .help("クリップボードから貼り付け")
-                            
+
                             Button(action: validateAPIKey) {
                                 if isValidatingKey {
                                     ProgressView()
@@ -116,7 +105,7 @@ struct SettingsView: View {
                             }
                             .disabled(settingsManager.settings.apiKey.isEmpty || isValidatingKey)
                         }
-                        
+
                         HStack {
                             switch keyStatus {
                             case .valid:
@@ -134,41 +123,29 @@ struct SettingsView: View {
                             }
                         }
                         .font(.caption)
-                        
+
                         Text("Gemini APIキーは [Google AI Studio](https://aistudio.google.com/app/apikey) から取得できます。")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                            .padding(.top, 8)
-                    }
-                    .padding(.leading, 4)
-                }
-                
-                Divider()
-                
-                // モデル設定
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("モデル設定")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    
-                    VStack(alignment: .leading, spacing: 8) {
+
+                        Divider()
+
                         Picker("モデル", selection: $settingsManager.settings.selectedModel) {
                             ForEach(GeminiModel.allCases.filter { $0.isRecommended }, id: \.self) { model in
                                 Text(model.displayName).tag(model)
                             }
                         }
-                        
-                        // 選択中のモデルの説明
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text(settingsManager.settings.selectedModel.description)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            
+
                             HStack {
                                 Text("料金: \(settingsManager.settings.selectedModel.pricingDescription)")
                                     .font(.caption2)
                                     .foregroundColor(.blue)
-                                
+
                                 if settingsManager.settings.selectedModel.hasFreeTier {
                                     Text("無料枠あり")
                                         .font(.caption2)
@@ -180,19 +157,12 @@ struct SettingsView: View {
                                 }
                             }
                         }
-                        .padding(.top, 4)
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
 
-                Divider()
-
-                // 選択編集モード
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("選択テキスト編集")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
+                // 選択テキスト編集
+                GroupBox(label: Label("テキスト編集", systemImage: "pencil.line")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle("Apple Intelligence で書き直す", isOn: $settingsManager.settings.useAppleIntelligenceForEdit)
 
@@ -200,17 +170,11 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
 
-                Divider()
-
                 // ローカル文字起こし（Voxtral）
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(L10n.Voxtral.localTranscription)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
+                GroupBox(label: Label(L10n.Voxtral.localTranscription, systemImage: "desktopcomputer")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle(L10n.Voxtral.useLocalModel, isOn: $settingsManager.settings.useLocalTranscription)
 
@@ -234,7 +198,6 @@ struct SettingsView: View {
                                         .frame(width: 80)
                                 }
 
-                                // サーバー管理
                                 HStack(spacing: 12) {
                                     if voxtralServerManager.status.isRunning {
                                         Button(action: { VoxtralServerManager.shared.stopServer() }) {
@@ -246,7 +209,6 @@ struct SettingsView: View {
                                         }
                                     }
 
-                                    // ステータス表示
                                     HStack(spacing: 4) {
                                         switch voxtralServerManager.status {
                                         case .stopped:
@@ -283,7 +245,6 @@ struct SettingsView: View {
                                     .font(.caption)
                                 }
 
-                                // 接続テスト
                                 HStack {
                                     Button(action: testVoxtralConnection) {
                                         if isTestingVoxtral {
@@ -329,7 +290,7 @@ struct SettingsView: View {
                                 .padding(.top, 4)
                         }
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
             }
             .padding()
@@ -438,12 +399,17 @@ struct SettingsView: View {
                         }
 
                         if isRecordingShortcut {
-                            ShortcutRecorderView { shortcut in
-                                settingsManager.settings.pushToTalkShortcut = shortcut
-                                settingsManager.saveSettings()
-                                NotificationCenter.default.post(name: .updateHotkey, object: nil)
-                                isRecordingShortcut = false
-                            }
+                            ShortcutRecorderView(
+                                onRecord: { shortcut in
+                                    settingsManager.settings.pushToTalkShortcut = shortcut
+                                    settingsManager.saveSettings()
+                                    NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                                    isRecordingShortcut = false
+                                },
+                                onCancel: {
+                                    isRecordingShortcut = false
+                                }
+                            )
                             .frame(height: 44)
                             .background(Color.accentColor.opacity(0.08))
                             .cornerRadius(8)
@@ -586,14 +552,10 @@ struct SettingsView: View {
 
     private var advancedSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 16) {
                 // 権限
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("権限")
-                        .font(.headline)
-
+                GroupBox(label: Label("権限", systemImage: "lock.shield")) {
                     VStack(alignment: .leading, spacing: 12) {
-                        // マイク権限
                         PermissionRow(
                             icon: "mic.fill",
                             title: "マイク",
@@ -602,7 +564,6 @@ struct SettingsView: View {
                             onRequest: requestMicrophonePermission
                         )
 
-                        // アクセシビリティ権限
                         PermissionRow(
                             icon: "keyboard",
                             title: "アクセシビリティ",
@@ -611,7 +572,6 @@ struct SettingsView: View {
                             onRequest: requestAccessibilityPermission
                         )
 
-                        // 画面収録権限
                         PermissionRow(
                             icon: "rectangle.dashed.and.paperclip",
                             title: "画面収録",
@@ -620,16 +580,11 @@ struct SettingsView: View {
                             onRequest: { ScreenshotManager.shared.requestScreenRecordingPermission() }
                         )
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
 
-                Divider()
-
                 // 文字起こしプロンプト
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("文字起こしプロンプト")
-                        .font(.headline)
-
+                GroupBox(label: Label("文字起こしプロンプト", systemImage: "text.bubble")) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("音声を文字起こしする際にGeminiに送信するプロンプトです")
                             .font(.caption)
@@ -640,7 +595,6 @@ struct SettingsView: View {
                                 settingsManager.settings.customPrompt ?? GeminiService.defaultTranscriptionPrompt
                             },
                             set: { newValue in
-                                // デフォルトと同じ場合はnilに
                                 if newValue.trimmingCharacters(in: .whitespacesAndNewlines) == GeminiService.defaultTranscriptionPrompt.trimmingCharacters(in: .whitespacesAndNewlines) {
                                     settingsManager.settings.customPrompt = nil
                                 } else {
@@ -673,34 +627,11 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
-
-                Divider()
-
-                // デバッグ
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("デバッグ")
-                        .font(.headline)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Toggle("ログを有効化", isOn: .constant(false))
-                            .disabled(true)
-
-                        Button("キャッシュをクリア") {
-                            clearCache()
-                        }
-                    }
-                    .padding(.leading, 4)
-                }
-
-                Divider()
 
                 // アプリ情報
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("アプリ情報")
-                        .font(.headline)
-
+                GroupBox(label: Label("アプリ情報", systemImage: "info.circle")) {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("バージョン")
@@ -715,8 +646,14 @@ struct SettingsView: View {
                             Text("2025.02.04")
                                 .foregroundColor(.secondary)
                         }
+
+                        Divider()
+
+                        Button("キャッシュをクリア") {
+                            clearCache()
+                        }
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
             }
             .padding()
@@ -1216,77 +1153,135 @@ struct ExampleRow: View {
 }
 
 
-// MARK: - Hotkey Recorder View
+// MARK: - Shortcut Recorder View
 
-struct HotkeyRecorderView: NSViewRepresentable {
-    let onRecord: (NSEvent.ModifierFlags, UInt16) -> Void
-    
-    func makeNSView(context: Context) -> HotkeyRecorderNSView {
-        let view = HotkeyRecorderNSView()
+struct ShortcutRecorderView: NSViewRepresentable {
+    let onRecord: (PushToTalkShortcut) -> Void
+    var onCancel: (() -> Void)?
+
+    func makeNSView(context: Context) -> ShortcutRecorderNSView {
+        let view = ShortcutRecorderNSView()
         view.onRecord = onRecord
+        view.onCancel = onCancel
         return view
     }
-    
-    func updateNSView(_ nsView: HotkeyRecorderNSView, context: Context) {}
+
+    func updateNSView(_ nsView: ShortcutRecorderNSView, context: Context) {}
 }
 
-class HotkeyRecorderNSView: NSView {
-    var onRecord: ((NSEvent.ModifierFlags, UInt16) -> Void)?
-    private var isRecording = false
+class ShortcutRecorderNSView: NSView {
+    var onRecord: ((PushToTalkShortcut) -> Void)?
+    var onCancel: (() -> Void)?
     private var label: NSTextField?
-    
+    private var localMonitor: Any?
+    private var peakModifiers: NSEvent.ModifierFlags = []
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setup()
     }
-    
+
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         setup()
     }
-    
+
     private func setup() {
-        let textField = NSTextField(labelWithString: "クリックしてホットキーを入力")
+        let textField = NSTextField(labelWithString: "キーを入力してください... (ESCでキャンセル)")
         textField.alignment = .center
-        textField.font = NSFont.systemFont(ofSize: 14, weight: .medium)
+        textField.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        textField.textColor = .secondaryLabelColor
         textField.translatesAutoresizingMaskIntoConstraints = false
         addSubview(textField)
         label = textField
-        
+
         NSLayoutConstraint.activate([
             textField.centerXAnchor.constraint(equalTo: centerXAnchor),
             textField.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
+
+        startMonitoring()
     }
-    
-    override func mouseDown(with event: NSEvent) {
-        isRecording = !isRecording
-        
-        if isRecording {
-            label?.stringValue = "キーを押してください..."
-            window?.makeFirstResponder(self)
-        } else {
-            label?.stringValue = "クリックしてホットキーを入力"
+
+    private func startMonitoring() {
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
+            guard let self = self else { return event }
+            return self.handleEvent(event)
         }
     }
-    
-    override func keyDown(with event: NSEvent) {
-        guard isRecording else { return }
-        
-        let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let keyCode = event.keyCode
-        
-        // 修飾キーのみは無視
-        let modifierKeyCodes: [UInt16] = [54, 55, 56, 58, 59, 60, 61, 62] // Cmd, Opt, Ctrl, Shift
-        guard !modifierKeyCodes.contains(keyCode) else { return }
-        
-        onRecord?(modifiers, keyCode)
-        
-        isRecording = false
-        label?.stringValue = "クリックしてホットキーを入力"
+
+    private func handleEvent(_ event: NSEvent) -> NSEvent? {
+        if event.type == .keyDown {
+            if event.keyCode == 53 { // ESC
+                stopMonitoring()
+                DispatchQueue.main.async { [weak self] in
+                    self?.onCancel?()
+                }
+                return nil
+            }
+
+            // 通常キー → モディファイア + キーコードとしてキャプチャ
+            if !PushToTalkShortcut.isModifierKeyCode(event.keyCode) {
+                let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                let shortcut = PushToTalkShortcut(
+                    modifierFlags: modifiers.rawValue,
+                    keyCode: event.keyCode
+                )
+                stopMonitoring()
+                DispatchQueue.main.async { [weak self] in
+                    self?.onRecord?(shortcut)
+                }
+                return nil
+            }
+        } else if event.type == .flagsChanged {
+            let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+            if modifiers.isEmpty && !peakModifiers.isEmpty {
+                // 全モディファイア解放 → モディファイアのみショートカットとしてキャプチャ
+                let shortcut = PushToTalkShortcut(
+                    modifierFlags: peakModifiers.rawValue,
+                    keyCode: nil
+                )
+                peakModifiers = []
+                stopMonitoring()
+                DispatchQueue.main.async { [weak self] in
+                    self?.onRecord?(shortcut)
+                }
+                return nil
+            } else if !modifiers.isEmpty {
+                // モディファイアが増えた場合のみピークを更新
+                if modifiers.isSuperset(of: peakModifiers) || peakModifiers.isEmpty {
+                    peakModifiers = modifiers
+                }
+                updateLabel(peakModifiers)
+            }
+        }
+
+        return nil // レコーディング中は全イベントを消費
     }
-    
+
+    private func updateLabel(_ modifiers: NSEvent.ModifierFlags) {
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("⌃") }
+        if modifiers.contains(.option) { parts.append("⌥") }
+        if modifiers.contains(.shift) { parts.append("⇧") }
+        if modifiers.contains(.command) { parts.append("⌘") }
+        if modifiers.contains(.function) { parts.append("Fn") }
+        label?.stringValue = parts.joined(separator: " + ") + " + ..."
+    }
+
+    private func stopMonitoring() {
+        if let monitor = localMonitor {
+            NSEvent.removeMonitor(monitor)
+            localMonitor = nil
+        }
+    }
+
     override var acceptsFirstResponder: Bool { true }
+
+    deinit {
+        stopMonitoring()
+    }
 }
 
 extension Notification.Name {
