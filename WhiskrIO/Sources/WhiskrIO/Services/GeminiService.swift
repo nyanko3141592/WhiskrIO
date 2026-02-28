@@ -355,7 +355,7 @@ class GeminiService {
     }
     
     /// ルールに基づいて処理
-    private func processWithRule(text: String, ruleResult: RuleProcessingResult, prompt: String) async throws -> String {
+    func processWithRule(text: String, ruleResult: RuleProcessingResult, prompt: String) async throws -> String {
         do {
             // コマンド生成など、追加処理が必要な場合
             if ruleResult.action == .generateCommand {

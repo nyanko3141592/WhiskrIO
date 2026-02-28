@@ -5,8 +5,18 @@ import ApplicationServices
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager.shared
     @StateObject private var historyManager = TranscriptionHistoryManager.shared
+    @StateObject private var recordingManager = RecordingManager()
+    @StateObject private var voxtralServerManager = VoxtralServerManager.shared
     @State private var isValidatingKey = false
     @State private var keyStatus: KeyStatus = .unknown
+    @State private var isTestingVoxtral = false
+    @State private var voxtralTestResult: VoxtralTestResult = .none
+
+    enum VoxtralTestResult {
+        case none
+        case success
+        case failure(String)
+    }
     
     enum KeyStatus {
         case unknown
@@ -174,6 +184,153 @@ struct SettingsView: View {
                     }
                     .padding(.leading, 4)
                 }
+
+                Divider()
+
+                // 選択編集モード
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("選択テキスト編集")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle("Apple Intelligence で書き直す", isOn: $settingsManager.settings.useAppleIntelligenceForEdit)
+
+                        Text("テキスト選択時にPush to Talkすると、Apple Intelligenceの作文ツールを起動します。OFFの場合は音声指示+Geminiで編集します。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.leading, 4)
+                }
+
+                Divider()
+
+                // ローカル文字起こし（Voxtral）
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(L10n.Voxtral.localTranscription)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(L10n.Voxtral.useLocalModel, isOn: $settingsManager.settings.useLocalTranscription)
+
+                        if settingsManager.settings.useLocalTranscription {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(L10n.Voxtral.serverSettings)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+
+                                HStack {
+                                    Text(L10n.Voxtral.host)
+                                        .frame(width: 50, alignment: .trailing)
+                                    TextField("127.0.0.1", text: $settingsManager.settings.voxtralHost)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 150)
+
+                                    Text(L10n.Voxtral.port)
+                                        .frame(width: 40, alignment: .trailing)
+                                    TextField("8000", value: $settingsManager.settings.voxtralPort, format: .number)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(width: 80)
+                                }
+
+                                // サーバー管理
+                                HStack(spacing: 12) {
+                                    if voxtralServerManager.status.isRunning {
+                                        Button(action: { VoxtralServerManager.shared.stopServer() }) {
+                                            Text("Stop Server")
+                                        }
+                                    } else {
+                                        Button(action: { VoxtralServerManager.shared.startServer() }) {
+                                            Text("Start Server")
+                                        }
+                                    }
+
+                                    // ステータス表示
+                                    HStack(spacing: 4) {
+                                        switch voxtralServerManager.status {
+                                        case .stopped:
+                                            Circle()
+                                                .fill(Color.gray)
+                                                .frame(width: 8, height: 8)
+                                            Text("Stopped")
+                                                .foregroundColor(.secondary)
+                                        case .starting:
+                                            ProgressView()
+                                                .controlSize(.small)
+                                            Text("Starting...")
+                                                .foregroundColor(.orange)
+                                        case .loadingModel:
+                                            ProgressView()
+                                                .controlSize(.small)
+                                            Text("Loading model...")
+                                                .foregroundColor(.orange)
+                                        case .ready:
+                                            Circle()
+                                                .fill(Color.green)
+                                                .frame(width: 8, height: 8)
+                                            Text("Ready")
+                                                .foregroundColor(.green)
+                                        case .error(let msg):
+                                            Circle()
+                                                .fill(Color.red)
+                                                .frame(width: 8, height: 8)
+                                            Text(msg)
+                                                .foregroundColor(.red)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    .font(.caption)
+                                }
+
+                                // 接続テスト
+                                HStack {
+                                    Button(action: testVoxtralConnection) {
+                                        if isTestingVoxtral {
+                                            HStack(spacing: 4) {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                                Text(L10n.Voxtral.testing)
+                                            }
+                                        } else {
+                                            Text(L10n.Voxtral.testConnection)
+                                        }
+                                    }
+                                    .disabled(isTestingVoxtral || voxtralServerManager.status != .ready)
+
+                                    switch voxtralTestResult {
+                                    case .success:
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                            Text(L10n.Voxtral.connectionSuccess)
+                                                .foregroundColor(.green)
+                                        }
+                                        .font(.caption)
+                                    case .failure(let msg):
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.red)
+                                            Text("\(L10n.Voxtral.connectionFailed): \(msg)")
+                                                .foregroundColor(.red)
+                                                .lineLimit(2)
+                                        }
+                                        .font(.caption)
+                                    case .none:
+                                        EmptyView()
+                                    }
+                                }
+                            }
+                            .padding(.leading, 20)
+
+                            Text(L10n.Voxtral.geminiRequired)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                    .padding(.leading, 4)
+                }
             }
             .padding()
         }
@@ -185,19 +342,150 @@ struct SettingsView: View {
         .onChange(of: settingsManager.settings.selectedModel) { _ in
             settingsManager.saveSettings()
         }
+        .onChange(of: settingsManager.settings.useLocalTranscription) { _ in
+            settingsManager.saveSettings()
+            NotificationCenter.default.post(name: .localTranscriptionToggled, object: nil)
+        }
+        .onChange(of: settingsManager.settings.voxtralHost) { _ in
+            settingsManager.saveSettings()
+        }
+        .onChange(of: settingsManager.settings.voxtralPort) { _ in
+            settingsManager.saveSettings()
+        }
+        .onChange(of: settingsManager.settings.useAppleIntelligenceForEdit) { _ in
+            settingsManager.saveSettings()
+        }
     }
-    
+
     // MARK: - Input Settings (Hotkey + Push to Talk)
+
+    @State private var isRecordingShortcut = false
 
     private var inputSettings: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                // 言語設定
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("言語設定")
-                        .font(.headline)
-
+            VStack(alignment: .leading, spacing: 16) {
+                // マイク
+                GroupBox(label: Label("マイク", systemImage: "mic.fill")) {
                     VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Picker("入力デバイス", selection: Binding(
+                                get: { settingsManager.settings.selectedMicrophoneID ?? "" },
+                                set: { newValue in
+                                    settingsManager.settings.selectedMicrophoneID = newValue.isEmpty ? nil : newValue
+                                    settingsManager.saveSettings()
+                                }
+                            )) {
+                                Text("システムデフォルト").tag("")
+                                ForEach(recordingManager.availableMicrophones) { mic in
+                                    Text(mic.name + (mic.isDefault ? " (デフォルト)" : "")).tag(mic.id)
+                                }
+                            }
+
+                            Button(action: { recordingManager.refreshMicrophoneList() }) {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .buttonStyle(.plain)
+                            .help("マイク一覧を更新")
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                // 入力モード + ショートカット
+                GroupBox(label: Label("入力モード", systemImage: "keyboard")) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("モード", selection: $settingsManager.settings.pushToTalkMode) {
+                            Text("Push to Talk").tag(true)
+                            Text("トグル").tag(false)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: settingsManager.settings.pushToTalkMode) { _ in
+                            settingsManager.saveSettings()
+                            NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                        }
+
+                        Text(settingsManager.settings.pushToTalkMode
+                            ? "キーを押している間だけ録音します"
+                            : "ショートカットで録音の開始/停止を切り替えます")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Divider()
+
+                        // ショートカット表示 + レコーダー
+                        HStack {
+                            Text("ショートカット")
+                                .font(.subheadline)
+
+                            Spacer()
+
+                            // 現在のショートカット表示
+                            Text(settingsManager.settings.pushToTalkShortcut.displayName)
+                                .font(.system(.body, design: .monospaced, weight: .semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color(NSColor.controlBackgroundColor))
+                                .cornerRadius(6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(isRecordingShortcut ? Color.accentColor : Color(NSColor.separatorColor), lineWidth: isRecordingShortcut ? 2 : 1)
+                                )
+
+                            Button(isRecordingShortcut ? "キャンセル" : "変更...") {
+                                isRecordingShortcut.toggle()
+                            }
+                            .controlSize(.small)
+                        }
+
+                        if isRecordingShortcut {
+                            ShortcutRecorderView { shortcut in
+                                settingsManager.settings.pushToTalkShortcut = shortcut
+                                settingsManager.saveSettings()
+                                NotificationCenter.default.post(name: .updateHotkey, object: nil)
+                                isRecordingShortcut = false
+                            }
+                            .frame(height: 44)
+                            .background(Color.accentColor.opacity(0.08))
+                            .cornerRadius(8)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+
+                        // プリセット
+                        HStack(spacing: 8) {
+                            Text("プリセット")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Button("⌥ + ⌘") {
+                                setShortcut(PushToTalkShortcut(modifierFlags: NSEvent.ModifierFlags([.option, .command]).rawValue, keyCode: nil))
+                            }
+                            .controlSize(.small)
+
+                            Button("⌃ + Space") {
+                                setShortcut(PushToTalkShortcut(modifierFlags: NSEvent.ModifierFlags([.control]).rawValue, keyCode: 49))
+                            }
+                            .controlSize(.small)
+
+                            Button("F13") {
+                                setShortcut(PushToTalkShortcut(modifierFlags: 0, keyCode: 105))
+                            }
+                            .controlSize(.small)
+
+                            Button("⌘ + ⇧ + F3") {
+                                setShortcut(PushToTalkShortcut(modifierFlags: NSEvent.ModifierFlags([.command, .shift]).rawValue, keyCode: 99))
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
+                // 録音設定
+                GroupBox(label: Label("録音設定", systemImage: "waveform")) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Picker("文字起こし言語", selection: $settingsManager.settings.speechLanguage) {
                             ForEach(SpeechLanguage.allCases, id: \.self) { language in
                                 Text(language.displayName).tag(language)
@@ -207,65 +495,35 @@ struct SettingsView: View {
                             settingsManager.saveSettings()
                         }
 
-                        Text("音声入力の言語を指定します。「自動検出」では英語と誤認識されることがあります。")
+                        Text("「自動検出」では英語と誤認識されることがあります")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                    }
-                    .padding(.leading, 4)
-                }
 
-                Divider()
+                        Divider()
 
-                // 録音時間の上限
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("録音時間の上限")
-                        .font(.headline)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Picker("上限", selection: $settingsManager.settings.maxRecordingDuration) {
-                                Text("30秒").tag(30)
-                                Text("1分").tag(60)
-                                Text("2分").tag(120)
-                                Text("3分").tag(180)
-                                Text("5分").tag(300)
-                            }
-                            .pickerStyle(.segmented)
-                            .onChange(of: settingsManager.settings.maxRecordingDuration) { _ in
-                                settingsManager.saveSettings()
-                            }
+                        Picker("録音時間の上限", selection: $settingsManager.settings.maxRecordingDuration) {
+                            Text("30秒").tag(30)
+                            Text("1分").tag(60)
+                            Text("2分").tag(120)
+                            Text("3分").tag(180)
+                            Text("5分").tag(300)
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: settingsManager.settings.maxRecordingDuration) { _ in
+                            settingsManager.saveSettings()
                         }
 
-                        Text("設定した時間に達すると自動的に録音が停止します")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.leading, 4)
-                }
+                        Divider()
 
-                Divider()
-
-                // 画面コンテキスト
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("画面コンテキスト")
-                        .font(.headline)
-
-                    VStack(alignment: .leading, spacing: 8) {
                         Toggle("画面のスクリーンショットを送信", isOn: $settingsManager.settings.captureScreenshot)
                             .onChange(of: settingsManager.settings.captureScreenshot) { newValue in
                                 settingsManager.saveSettings()
-                                // 有効化時に権限がなければリクエスト
                                 if newValue && !ScreenshotManager.shared.hasScreenRecordingPermission() {
                                     ScreenshotManager.shared.requestScreenRecordingPermission()
                                 }
                             }
 
-                        Text("音声入力時にカーソル周辺の画面をキャプチャし、コンテキストとして送信します")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
                         if settingsManager.settings.captureScreenshot {
-                            // キャプチャサイズ
                             Picker("キャプチャ範囲", selection: $settingsManager.settings.captureSize) {
                                 ForEach(CaptureSize.allCases, id: \.self) { size in
                                     Text(size.displayName).tag(size)
@@ -274,75 +532,16 @@ struct SettingsView: View {
                             .onChange(of: settingsManager.settings.captureSize) { _ in
                                 settingsManager.saveSettings()
                             }
-
-                            // 権限状態
-                            HStack(spacing: 6) {
-                                if ScreenshotManager.shared.hasScreenRecordingPermission() {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    Text("画面収録の権限: 許可済み")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                } else {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                    Text("画面収録の権限が必要です")
-                                        .font(.caption)
-                                        .foregroundColor(.orange)
-
-                                    Button("設定を開く") {
-                                        ScreenshotManager.shared.requestScreenRecordingPermission()
-                                    }
-                                    .buttonStyle(.link)
-                                    .font(.caption)
-                                }
-                            }
-                            .padding(.top, 4)
+                            .padding(.leading, 20)
                         }
                     }
-                    .padding(.leading, 4)
+                    .padding(.vertical, 4)
                 }
 
-                Divider()
-
-                // 入力モード
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("入力モード")
-                        .font(.headline)
-
+                // 表示
+                GroupBox(label: Label("表示", systemImage: "display")) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Picker("モード", selection: $settingsManager.settings.pushToTalkMode) {
-                            Text("Push to Talk").tag(true)
-                            Text("トグルモード").tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: settingsManager.settings.pushToTalkMode) { _ in
-                            settingsManager.saveSettings()
-                            NotificationCenter.default.post(name: .updateHotkey, object: nil)
-                        }
-
-                        if settingsManager.settings.pushToTalkMode {
-                            Text("キーを押している間だけ録音します")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("ホットキーで録音の開始/停止を切り替えます")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.leading, 4)
-                }
-
-                Divider()
-
-                // オーバーレイ位置
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("キャラクターの位置")
-                        .font(.headline)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        Picker("位置", selection: $settingsManager.settings.overlayPosition) {
+                        Picker("キャラクターの位置", selection: $settingsManager.settings.overlayPosition) {
                             ForEach(OverlayPosition.allCases, id: \.self) { position in
                                 Label(position.displayName, systemImage: position.icon).tag(position)
                             }
@@ -350,141 +549,22 @@ struct SettingsView: View {
                         .pickerStyle(.segmented)
                         .onChange(of: settingsManager.settings.overlayPosition) { _ in
                             settingsManager.saveSettings()
-                            // オーバーレイ位置を更新
                             NotificationCenter.default.post(name: .updateOverlayPosition, object: nil)
                         }
-
-                        Text("録音中に表示されるキャラクターの画面上の位置を設定します")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                     }
-                    .padding(.leading, 4)
-                }
-                
-                if settingsManager.settings.pushToTalkMode {
-                    Divider()
-                    
-                    // Push to Talk キー
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Push to Talk キー（複数選択可）")
-                            .font(.headline)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            // 複合キー選択
-                            HStack(spacing: 8) {
-                                ForEach(PushToTalkKey.allCases, id: \.self) { key in
-                                    Toggle(key.shortDisplayName, isOn: Binding(
-                                        get: {
-                                            settingsManager.settings.pushToTalkKeys.contains(key)
-                                        },
-                                        set: { isSelected in
-                                            if isSelected {
-                                                settingsManager.settings.pushToTalkKeys.append(key)
-                                            } else {
-                                                settingsManager.settings.pushToTalkKeys.removeAll { $0 == key }
-                                            }
-                                            // 最低1つは選択されていることを保証
-                                            if settingsManager.settings.pushToTalkKeys.isEmpty {
-                                                settingsManager.settings.pushToTalkKeys = [.option]
-                                            }
-                                            settingsManager.saveSettings()
-                                            NotificationCenter.default.post(name: .updateHotkey, object: nil)
-                                        }
-                                    ))
-                                    .toggleStyle(.button)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                            
-                            HStack {
-                                Text("現在の設定:")
-                                Spacer()
-                                Text("\(settingsManager.settings.pushToTalkKeys.combinedDisplayName) を押して話す")
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.top, 8)
-                        }
-                        .padding(.leading, 4)
-                    }
-                } else {
-                    Divider()
-                    
-                    // トグルホットキー
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("トグルホットキー")
-                            .font(.headline)
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("現在のホットキー: \(hotkeyDescription)")
-                                .font(.headline)
-                            
-                            Text("新しいホットキーを設定:")
-                                .padding(.top, 8)
-                            
-                            HotkeyRecorderView { modifierFlags, keyCode in
-                                settingsManager.settings.hotkeyModifier = Int(modifierFlags.rawValue)
-                                settingsManager.settings.hotkeyKeyCode = Int(keyCode)
-                                settingsManager.saveSettings()
-                                
-                                // ホットキーを再登録
-                                NotificationCenter.default.post(name: .updateHotkey, object: nil)
-                            }
-                            .frame(height: 60)
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(8)
-                        }
-                        .padding(.leading, 4)
-                    }
-                    
-                    Divider()
-                    
-                    // プリセット
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("プリセット")
-                            .font(.headline)
-                        
-                        HStack {
-                            Button("⌘⇧F3") {
-                                setHotkey(modifier: .command.union(.shift), keyCode: 99)
-                            }
-                            
-                            Button("⌥Space") {
-                                setHotkey(modifier: .option, keyCode: 49)
-                            }
-                            
-                            Button("Fn F6") {
-                                setHotkey(modifier: .function, keyCode: 97)
-                            }
-                        }
-                        .padding(.leading, 4)
-                    }
+                    .padding(.vertical, 4)
                 }
             }
             .padding()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
-    private var hotkeyDescription: String {
-        let modifiers = NSEvent.ModifierFlags(rawValue: UInt(settingsManager.settings.hotkeyModifier))
-        var description = ""
-        
-        if modifiers.contains(.command) { description += "⌘" }
-        if modifiers.contains(.option) { description += "⌥" }
-        if modifiers.contains(.control) { description += "⌃" }
-        if modifiers.contains(.shift) { description += "⇧" }
-        
-        let keyCode = settingsManager.settings.hotkeyKeyCode
-        description += KeyCodeHelper.stringForKeyCode(keyCode)
-        
-        return description
-    }
-    
-    private func setHotkey(modifier: NSEvent.ModifierFlags, keyCode: Int) {
-        settingsManager.settings.hotkeyModifier = Int(modifier.rawValue)
-        settingsManager.settings.hotkeyKeyCode = keyCode
+
+    private func setShortcut(_ shortcut: PushToTalkShortcut) {
+        settingsManager.settings.pushToTalkShortcut = shortcut
         settingsManager.saveSettings()
         NotificationCenter.default.post(name: .updateHotkey, object: nil)
+        isRecordingShortcut = false
     }
     
     // MARK: - Rules Settings States
@@ -654,14 +734,33 @@ struct SettingsView: View {
     
     private func validateAPIKey() {
         isValidatingKey = true
-        
+
         Task {
             let service = GeminiService()
             let isValid = await service.validateAPIKey()
-            
+
             DispatchQueue.main.async {
                 self.keyStatus = isValid ? .valid : .invalid
                 self.isValidatingKey = false
+            }
+        }
+    }
+
+    private func testVoxtralConnection() {
+        isTestingVoxtral = true
+        voxtralTestResult = .none
+
+        Task {
+            let service = VoxtralService()
+            let result = await service.testConnection()
+
+            DispatchQueue.main.async {
+                self.isTestingVoxtral = false
+                if result.success {
+                    self.voxtralTestResult = .success
+                } else {
+                    self.voxtralTestResult = .failure(result.message)
+                }
             }
         }
     }

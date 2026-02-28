@@ -56,6 +56,67 @@ extension Array where Element == PushToTalkKey {
     }
 }
 
+// MARK: - Push to Talk Shortcut (任意キー組み合わせ対応)
+struct PushToTalkShortcut: Codable, Equatable {
+    var modifierFlags: UInt    // NSEvent.ModifierFlags.rawValue
+    var keyCode: UInt16?       // nil = モディファイアのみ
+
+    /// 表示名を生成（例: "⌥ + ⌘" "⌃ + Space" "F13"）
+    var displayName: String {
+        let flags = NSEvent.ModifierFlags(rawValue: modifierFlags)
+        var parts: [String] = []
+
+        if flags.contains(.control) { parts.append("⌃") }
+        if flags.contains(.option) { parts.append("⌥") }
+        if flags.contains(.shift) { parts.append("⇧") }
+        if flags.contains(.command) { parts.append("⌘") }
+        if flags.contains(.function) { parts.append("Fn") }
+
+        if let kc = keyCode {
+            parts.append(PushToTalkShortcut.keyCodeToString(kc))
+        }
+
+        return parts.isEmpty ? "未設定" : parts.joined(separator: " + ")
+    }
+
+    /// キーコードを人間に読める文字列に変換
+    static func keyCodeToString(_ keyCode: UInt16) -> String {
+        let map: [UInt16: String] = [
+            0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X",
+            8: "C", 9: "V", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
+            16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+            23: "5", 24: "=", 25: "9", 26: "7", 27: "-", 28: "8", 29: "0",
+            30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P",
+            36: "Return", 37: "L", 38: "J", 39: "'", 40: "K", 41: ";",
+            42: "\\", 43: ",", 44: "/", 45: "N", 46: "M", 47: ".",
+            48: "Tab", 49: "Space", 50: "`", 51: "Delete", 53: "Esc",
+            96: "F5", 97: "F6", 98: "F7", 99: "F3", 100: "F8", 101: "F9",
+            103: "F11", 105: "F13", 106: "F16", 107: "F14", 109: "F10",
+            111: "F12", 113: "F15", 118: "F4", 120: "F2", 122: "F1",
+            123: "←", 124: "→", 125: "↓", 126: "↑",
+        ]
+        return map[keyCode] ?? "Key\(keyCode)"
+    }
+
+    /// モディファイアキーのキーコードかどうか
+    static func isModifierKeyCode(_ keyCode: UInt16) -> Bool {
+        // 54=RightCmd, 55=LeftCmd, 56=LeftShift, 57=CapsLock, 58=LeftOption,
+        // 59=LeftControl, 60=RightShift, 61=RightOption, 62=RightControl, 63=Fn
+        [54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(keyCode)
+    }
+
+    static let `default` = PushToTalkShortcut(
+        modifierFlags: NSEvent.ModifierFlags([.option, .command]).rawValue,
+        keyCode: nil
+    )
+
+    /// 旧PushToTalkKeys配列からマイグレーション
+    static func fromLegacy(_ keys: [PushToTalkKey]) -> PushToTalkShortcut {
+        let flags = keys.combinedModifierFlags
+        return PushToTalkShortcut(modifierFlags: flags.rawValue, keyCode: nil)
+    }
+}
+
 // MARK: - Overlay Position
 enum OverlayPosition: String, Codable, CaseIterable {
     case bottomCenter = "bottomCenter"
@@ -209,6 +270,12 @@ struct AppSettings: Codable, Equatable {
     var captureScreenshot: Bool  // スクリーンショットを送信するか
     var captureSize: CaptureSize  // キャプチャサイズ
     var overlayPosition: OverlayPosition  // オーバーレイの位置
+    var selectedMicrophoneID: String?  // 選択したマイクのUID（nilの場合はシステムデフォルト）
+    var useLocalTranscription: Bool  // ローカルモデルで文字起こしを行うか
+    var voxtralHost: String  // Voxtralサーバーのホスト
+    var voxtralPort: Int  // Voxtralサーバーのポート
+    var useAppleIntelligenceForEdit: Bool  // 選択編集にApple Intelligenceを使う
+    var pushToTalkShortcut: PushToTalkShortcut  // 任意キー組み合わせ対応ショートカット
 
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
@@ -229,7 +296,13 @@ struct AppSettings: Codable, Equatable {
         maxRecordingDuration: 60,  // デフォルト: 1分
         captureScreenshot: false,  // デフォルト: OFF（権限が必要）
         captureSize: .medium,  // デフォルト: 800×800px
-        overlayPosition: .bottomCenter  // デフォルト: 中央下
+        overlayPosition: .bottomCenter,  // デフォルト: 中央下
+        selectedMicrophoneID: nil,  // デフォルト: システムデフォルト
+        useLocalTranscription: false,  // デフォルト: OFF（Gemini APIで文字起こし）
+        voxtralHost: "127.0.0.1",  // デフォルト: ローカルホスト
+        voxtralPort: 8000,  // デフォルト: voxmlxのデフォルトポート
+        useAppleIntelligenceForEdit: true,  // デフォルト: ON（Apple Intelligenceで選択編集）
+        pushToTalkShortcut: .default  // デフォルト: ⌥ + ⌘
     )
 }
 
@@ -256,6 +329,14 @@ class SettingsManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: settingsKey),
            let savedSettings = try? JSONDecoder().decode(AppSettings.self, from: data) {
             settings = savedSettings
+
+            // 旧形式からのマイグレーション: pushToTalkShortcutがデフォルトのままで、
+            // pushToTalkKeysがカスタム設定されている場合はマイグレーション
+            if settings.pushToTalkShortcut == .default &&
+               settings.pushToTalkKeys != [.option, .command] {
+                settings.pushToTalkShortcut = .fromLegacy(settings.pushToTalkKeys)
+                saveSettings()
+            }
         }
         
         if let data = UserDefaults.standard.data(forKey: dictionaryKey),

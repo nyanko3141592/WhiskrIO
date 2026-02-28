@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - App Entry Point
 // LSUIElement app doesn't use WindowGroup, AppDelegate manages everything
@@ -9,7 +10,7 @@ class WhiskrIOApplication: NSApplication {
         // Hide app from dock
         self.setActivationPolicy(.accessory)
     }
-    
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -42,6 +43,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // API処理タスク（キャンセル用）
     private var currentTranscriptionTask: Task<Void, Never>?
+
+    // Voxtral (local transcription)
+    var voxtralService: VoxtralService?
+    private var audioStreamTimer: Timer?
+    private var audioCommitTimer: Timer?
+    private var partialTranscriptObserver: AnyCancellable?
     
     static func main() {
         let app = WhiskrIOApplication.shared
@@ -63,6 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Initialize services
         geminiService = GeminiService()
         recordingManager = RecordingManager()
+        voxtralService = VoxtralService()
         
         // Setup status bar and hotkeys
         statusBarController = StatusBarController()
@@ -132,6 +140,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Show idle dot
         overlayWindow?.showIdle()
+
+        // ローカル文字起こし有効ならサーバーを自動起動
+        if SettingsManager.shared.settings.useLocalTranscription {
+            VoxtralServerManager.shared.startServer()
+        }
+
+        // 設定変更を監視してサーバーを自動起動/停止
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLocalTranscriptionToggled),
+            name: .localTranscriptionToggled,
+            object: nil
+        )
+    }
+
+    @objc private func handleLocalTranscriptionToggled() {
+        if SettingsManager.shared.settings.useLocalTranscription {
+            if !VoxtralServerManager.shared.status.isRunning {
+                VoxtralServerManager.shared.startServer()
+            }
+        } else {
+            VoxtralServerManager.shared.stopServer()
+        }
     }
 
     @objc private func handleMaxDurationReached() {
@@ -167,6 +198,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         hotkeyManager?.unregisterHotkey()
         recordingTimer?.invalidate()
+        audioStreamTimer?.invalidate()
+        audioCommitTimer?.invalidate()
+        partialTranscriptObserver?.cancel()
+        voxtralService?.disconnect()
+        VoxtralServerManager.shared.stopServer()
     }
     
     func showSettingsWindow() {
@@ -212,10 +248,16 @@ extension AppDelegate: HotkeyDelegate {
         // Push to Talk: key pressed
         guard let recordingManager = recordingManager, !recordingManager.isRecording else { return }
 
-        // Check if API key is set
-        guard !SettingsManager.shared.settings.apiKey.isEmpty else {
-            showAPIKeyAlert()
-            return
+        let settings = SettingsManager.shared.settings
+        let useLocal = settings.useLocalTranscription
+
+        // APIキーチェック: ローカル文字起こし時でもselection-editやコマンドモードではGeminiが必要
+        // ただし通常モードのローカル文字起こしではAPIキー不要
+        if !useLocal {
+            guard !settings.apiKey.isEmpty else {
+                showAPIKeyAlert()
+                return
+            }
         }
 
         // 前のAPI処理をキャンセル
@@ -231,17 +273,29 @@ extension AppDelegate: HotkeyDelegate {
             // 選択テキストを取得（非同期）
             Task { @MainActor in
                 if let selected = await TextInjector.shared.getSelectedText(), !selected.isEmpty {
+                    // Apple Intelligence モード: Writing Tools を起動して終了
+                    if settings.useAppleIntelligenceForEdit {
+                        print("[AppDelegate] Triggering Apple Intelligence Writing Tools")
+                        self?.triggerAppleIntelligenceWritingTools()
+                        return
+                    }
+
                     self?.selectedTextForEdit = selected
                     self?.currentRecordingMode = .selectionEdit
                     self?.capturedScreenshot = nil  // 選択編集モードではスクリーンショット不要
                     print("[AppDelegate] Selection edit mode: \(selected.prefix(50))...")
+
+                    // selection-editモードはGemini APIキーが必要
+                    if settings.apiKey.isEmpty && !useLocal {
+                        self?.showAPIKeyAlert()
+                        return
+                    }
                 } else {
                     self?.selectedTextForEdit = nil
                     self?.currentRecordingMode = .normal
 
                     // 通常モードかつ設定が有効な場合、スクリーンショットを取得
-                    let settings = SettingsManager.shared.settings
-                    if settings.captureScreenshot {
+                    if settings.captureScreenshot && !useLocal {
                         self?.capturedScreenshot = ScreenshotManager.shared.captureAroundCursor(
                             size: settings.captureSize,
                             quality: 0.7
@@ -254,11 +308,17 @@ extension AppDelegate: HotkeyDelegate {
                     } else {
                         self?.capturedScreenshot = nil
                     }
-                    print("[AppDelegate] Normal mode (no selection)")
+                    print("[AppDelegate] Normal mode (no selection), useLocal=\(useLocal)")
                 }
 
-                // 録音開始
-                self?.recordingManager?.startRecording()
+                // ローカル文字起こし + 通常モード → ストリーミング開始
+                if useLocal && self?.currentRecordingMode == .normal {
+                    self?.startVoxtralStreaming()
+                } else {
+                    // 従来のGeminiバッチモード
+                    self?.recordingManager?.startRecording()
+                }
+
                 self?.overlayWindow?.show(mode: self?.currentRecordingMode ?? .normal)
                 self?.statusBarController?.updateRecordingState(true)
 
@@ -271,13 +331,20 @@ extension AppDelegate: HotkeyDelegate {
     func recordingStopped() {
         // Push to Talk: key released
         guard let recordingManager = recordingManager, recordingManager.isRecording else { return }
-        
-        stopRecording()
+
+        // ストリーミングモードか従来モードかで分岐
+        if recordingManager.isStreaming {
+            stopVoxtralStreaming()
+        } else {
+            stopRecording()
+        }
     }
-    
+
     private func startRecording() {
-        // Check if API key is set
-        guard !SettingsManager.shared.settings.apiKey.isEmpty else {
+        let settings = SettingsManager.shared.settings
+
+        // Check if API key is set (toggle mode uses Gemini only)
+        guard !settings.apiKey.isEmpty else {
             showAPIKeyAlert()
             return
         }
@@ -301,15 +368,199 @@ extension AppDelegate: HotkeyDelegate {
             }
         }
     }
-    
+
     private func stopRecording() {
         recordingManager?.stopRecording { [weak self] audioURL in
             DispatchQueue.main.async {
                 self?.overlayWindow?.hide()
                 self?.statusBarController?.updateRecordingState(false)
-                
+
                 if let url = audioURL {
                     self?.transcribeAudio(url: url)
+                }
+            }
+        }
+    }
+
+    // MARK: - Voxtral Streaming
+
+    private func startVoxtralStreaming() {
+        guard let voxtralService = voxtralService,
+              let recordingManager = recordingManager else { return }
+
+        currentTranscriptionTask = Task { [weak self] in
+            do {
+                // サーバーが起動していなければ自動起動
+                let serverManager = VoxtralServerManager.shared
+                if !serverManager.status.isRunning {
+                    await MainActor.run {
+                        serverManager.startServer()
+                    }
+                }
+
+                // サーバーがreadyになるまで待つ
+                if serverManager.status != .ready {
+                    await MainActor.run {
+                        self?.overlayWindow?.updatePartialTranscript("Starting server...")
+                    }
+                    let isReady = await serverManager.waitForReady(timeout: 120)
+                    guard isReady else {
+                        await MainActor.run {
+                            self?.overlayWindow?.hide()
+                            self?.statusBarController?.updateRecordingState(false)
+                            if case .error(let msg) = serverManager.status {
+                                self?.showError(VoxtralError.connectionFailed(msg))
+                            } else {
+                                self?.showError(VoxtralError.sessionTimeout)
+                            }
+                        }
+                        return
+                    }
+                }
+
+                // WebSocket接続
+                try await voxtralService.connect()
+
+                await MainActor.run {
+                    // AVAudioEngineでストリーミング開始
+                    recordingManager.startStreaming()
+
+                    // 100msごとにチャンクを送信
+                    self?.audioStreamTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+                        if let chunk = self?.recordingManager?.flushAudioChunk() {
+                            self?.voxtralService?.sendAudioChunk(chunk)
+                        }
+                    }
+
+                    // 0.9秒ごとにコミット（中間文字起こし取得用）
+                    self?.audioCommitTimer = Timer.scheduledTimer(withTimeInterval: 0.9, repeats: true) { [weak self] _ in
+                        self?.voxtralService?.commitBuffer(isFinal: false)
+                    }
+
+                    // partialTranscriptの変更を監視してオーバーレイに反映（カスタム辞書適用）
+                    self?.partialTranscriptObserver = voxtralService.$partialTranscript
+                        .receive(on: DispatchQueue.main)
+                        .sink { [weak self] text in
+                            let displayText = SettingsManager.shared.applyCustomDictionary(to: text)
+                            self?.overlayWindow?.updatePartialTranscript(displayText)
+                        }
+                }
+            } catch {
+                await MainActor.run {
+                    print("[AppDelegate] Voxtral connection failed: \(error)")
+                    self?.overlayWindow?.hide()
+                    self?.statusBarController?.updateRecordingState(false)
+                    self?.showError(error)
+                }
+            }
+        }
+    }
+
+    private func stopVoxtralStreaming() {
+        // タイマー停止
+        audioStreamTimer?.invalidate()
+        audioStreamTimer = nil
+        audioCommitTimer?.invalidate()
+        audioCommitTimer = nil
+        partialTranscriptObserver?.cancel()
+        partialTranscriptObserver = nil
+
+        // 残りチャンクをフラッシュ送信
+        if let chunk = recordingManager?.flushAudioChunk() {
+            voxtralService?.sendAudioChunk(chunk)
+        }
+
+        // ストリーミング停止
+        recordingManager?.stopStreaming()
+
+        overlayWindow?.showProcessing()
+        statusBarController?.updateRecordingState(false)
+
+        // 確定テキストを取得して処理
+        currentTranscriptionTask = Task { [weak self] in
+            do {
+                guard let voxtralService = self?.voxtralService,
+                      let geminiService = self?.geminiService else { return }
+
+                let rawText = try await voxtralService.waitForFinalTranscript()
+                voxtralService.disconnect()
+
+                try Task.checkCancellation()
+
+                guard !rawText.isEmpty else {
+                    await MainActor.run {
+                        self?.currentTranscriptionTask = nil
+                        self?.overlayWindow?.hide()
+                    }
+                    return
+                }
+
+                // カスタム辞書・スニペット適用
+                var finalText = SettingsManager.shared.applyCustomDictionary(to: rawText)
+                finalText = SettingsManager.shared.expandSnippets(in: finalText)
+
+                // 履歴に追加
+                await MainActor.run {
+                    TranscriptionHistoryManager.shared.addItem(text: finalText)
+                }
+
+                // コマンドモード検出
+                let (isCommand, cleanedText) = geminiService.detectCommandMode(transcribedText: finalText)
+
+                if isCommand {
+                    // Gemini APIでコマンド生成
+                    if SettingsManager.shared.settings.apiKey.isEmpty {
+                        await MainActor.run {
+                            self?.currentTranscriptionTask = nil
+                            self?.overlayWindow?.hide()
+                            self?.showAPIKeyAlert()
+                        }
+                        return
+                    }
+                    finalText = try await geminiService.generateZshCommand(instruction: cleanedText)
+                } else {
+                    // ルールエンジンで処理
+                    let ruleResult = RuleEngine.shared.process(text: finalText)
+                    if !ruleResult.isDefault {
+                        // Gemini APIでルール処理
+                        if SettingsManager.shared.settings.apiKey.isEmpty {
+                            await MainActor.run {
+                                self?.currentTranscriptionTask = nil
+                                self?.overlayWindow?.hide()
+                                self?.showAPIKeyAlert()
+                            }
+                            return
+                        }
+                        let prompt = RuleEngine.shared.generatePrompt(
+                            for: ruleResult.action,
+                            text: ruleResult.cleanedText,
+                            parameters: ruleResult.parameters,
+                            customPrompt: ruleResult.matchedRule?.prompt
+                        )
+                        finalText = try await geminiService.processWithRule(
+                            text: finalText,
+                            ruleResult: ruleResult,
+                            prompt: prompt
+                        )
+                    }
+                }
+
+                try Task.checkCancellation()
+
+                await MainActor.run {
+                    self?.currentTranscriptionTask = nil
+                    self?.overlayWindow?.hide()
+                    if !finalText.isEmpty {
+                        self?.insertText(finalText)
+                    }
+                }
+            } catch is CancellationError {
+                print("[AppDelegate] Voxtral transcription task was cancelled")
+            } catch {
+                await MainActor.run {
+                    self?.currentTranscriptionTask = nil
+                    self?.overlayWindow?.hide()
+                    self?.showError(error)
                 }
             }
         }
@@ -480,6 +731,43 @@ extension AppDelegate: HotkeyDelegate {
         alert.runModal()
     }
     
+    // MARK: - Apple Intelligence
+
+    private func triggerAppleIntelligenceWritingTools() {
+        // 保存したアプリにフォーカスを戻す
+        if let app = TextInjector.shared.previousApp {
+            app.activate(options: [.activateIgnoringOtherApps])
+        }
+
+        // フォーカスが戻ってからメニューを操作
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let script = """
+            tell application "System Events"
+                tell (first application process whose frontmost is true)
+                    try
+                        -- English
+                        click menu item "Writing Tools" of menu "Edit" of menu bar 1
+                    on error
+                        try
+                            -- Japanese
+                            click menu item "作文ツール" of menu "編集" of menu bar 1
+                        end try
+                    end try
+                end tell
+            end tell
+            """
+
+            var error: NSDictionary?
+            if let appleScript = NSAppleScript(source: script) {
+                appleScript.executeAndReturnError(&error)
+                if let error = error {
+                    print("[AppDelegate] Writing Tools trigger failed: \(error)")
+                    // フォールバック: Ctrl+Cmd+Space (macOS標準ショートカットがある場合)
+                }
+            }
+        }
+    }
+
     private func showAPIKeyAlert() {
         let alert = NSAlert()
         alert.messageText = L10n.Alert.apiKeyRequired

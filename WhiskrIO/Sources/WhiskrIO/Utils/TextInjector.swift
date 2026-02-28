@@ -21,7 +21,7 @@ class TextInjector {
     private let COPY_DELAY_SECONDS: TimeInterval = 0.15
 
     // 録音開始前にフォーカスされていたアプリを記録
-    private var previousApp: NSRunningApplication?
+    private(set) var previousApp: NSRunningApplication?
 
     private init() {}
 

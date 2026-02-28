@@ -37,6 +37,24 @@ class OverlayWindow: NSWindow {
     private var mouseUpMonitor: Any?
     private var isRecordingFromClick: Bool = false
 
+    // リアルタイムテキスト表示用
+    private var transcriptWindow: NSWindow?
+    private var transcriptTextField: NSTextField?
+
+    // ミニダッシュボード（ホバー時表示）
+    private var dashboardWindow: NSWindow?
+    private var dashboardShowTimer: Timer?
+    private var dashboardHideTimer: Timer?
+    private var statusDotView: NSView?
+    private var statusLabel: NSTextField?
+    private var transcriptionPreviewLabel: NSTextField?
+    private var timestampLabel: NSTextField?
+    private var usageLabel: NSTextField?
+
+    // マルチモニター追従用
+    private var screenTrackingTimer: Timer?
+    private var lastScreenFrame: NSRect = .zero
+
     // サイズ定数（SVG比率 1005:757 ≈ 1.33:1 + ジャンプ余白）
     private let idleWidth: CGFloat = 50
     private let idleHeight: CGFloat = 42  // 上に余白を確保
@@ -129,6 +147,9 @@ class OverlayWindow: NSWindow {
         updateTimer?.invalidate()
         updateTimer = nil
 
+        // ダッシュボードを非表示
+        hideDashboardImmediately()
+
         // マウスモニター解除
         stopMouseUpMonitoring()
 
@@ -143,6 +164,9 @@ class OverlayWindow: NSWindow {
         self.setFrame(NSRect(origin: position, size: size), display: true)
 
         self.orderFrontRegardless()
+
+        // マルチモニター追従を開始
+        startScreenTracking()
     }
 
     func show(mode: RecordingMode = .normal) {
@@ -151,6 +175,9 @@ class OverlayWindow: NSWindow {
 
         isIdle = false
         currentMode = mode
+
+        // ダッシュボードを即座に非表示
+        hideDashboardImmediately()
 
         // クリック録音でない場合（キーボードPush to Talk）はモニター解除
         // クリック録音の場合は startMouseUpMonitoring() で設定済み
@@ -187,17 +214,25 @@ class OverlayWindow: NSWindow {
         }
     }
 
-    /// オーバーレイの位置を計算
-    private func calculatePosition(for size: NSSize) -> NSPoint {
-        guard let screen = NSScreen.main else {
-            return NSPoint(x: 0, y: 60)
+    /// マウスカーソルがあるスクリーンを取得（マルチモニター対応）
+    private func screenForMouseCursor() -> NSScreen {
+        let mouseLocation = NSEvent.mouseLocation
+        for screen in NSScreen.screens {
+            if screen.frame.contains(mouseLocation) {
+                return screen
+            }
         }
+        return NSScreen.main ?? NSScreen.screens.first!
+    }
 
+    /// オーバーレイの位置を計算（マウスカーソルのあるスクリーンに配置）
+    private func calculatePosition(for size: NSSize) -> NSPoint {
+        let screen = screenForMouseCursor()
         let screenFrame = screen.visibleFrame
         let position = SettingsManager.shared.settings.overlayPosition
         let margin: CGFloat = 30  // 画面端からの余白
 
-        let y: CGFloat = 60
+        let y = screenFrame.minY + 60
 
         switch position {
         case .bottomCenter:
@@ -209,23 +244,375 @@ class OverlayWindow: NSWindow {
         }
     }
 
+    /// マルチモニター間のスクリーン変更を検出して再配置
+    private func startScreenTracking() {
+        screenTrackingTimer?.invalidate()
+        lastScreenFrame = screenForMouseCursor().frame
+        screenTrackingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            guard let self = self, self.isIdle else { return }
+            let currentFrame = self.screenForMouseCursor().frame
+            if currentFrame != self.lastScreenFrame {
+                self.lastScreenFrame = currentFrame
+                self.repositionOverlay()
+            }
+        }
+    }
+
+    private func stopScreenTracking() {
+        screenTrackingTimer?.invalidate()
+        screenTrackingTimer = nil
+    }
+
+    /// 現在の状態を維持したまま位置を再計算
+    private func repositionOverlay() {
+        let size: NSSize
+        if isIdle {
+            size = NSSize(width: idleWidth, height: idleHeight)
+        } else {
+            size = NSSize(width: recordingWidth, height: recordingHeight)
+        }
+        let position = calculatePosition(for: size)
+        self.setFrame(NSRect(origin: position, size: size), display: true)
+
+        // 付随ウィンドウも再配置
+        if transcriptWindow?.isVisible == true {
+            positionTranscriptWindow()
+        }
+        if dashboardWindow?.isVisible == true {
+            positionDashboardWindow()
+        }
+    }
+
     /// 録音/処理完了後、アイドル状態に戻る
     func hide() {
         updateTimer?.invalidate()
         updateTimer = nil
+        hideTranscriptWindow()
         showIdle()
+    }
+
+    // MARK: - Realtime Transcript Display
+
+    func updatePartialTranscript(_ text: String) {
+        guard !text.isEmpty else {
+            hideTranscriptWindow()
+            return
+        }
+
+        if transcriptWindow == nil {
+            createTranscriptWindow()
+        }
+
+        // テキストを最大3行に制限
+        let lines = text.components(separatedBy: "\n")
+        let displayText: String
+        if lines.count > 3 {
+            displayText = lines.suffix(3).joined(separator: "\n")
+        } else {
+            displayText = text
+        }
+        // 長すぎる場合は末尾だけ表示
+        let maxChars = 120
+        if displayText.count > maxChars {
+            transcriptTextField?.stringValue = "..." + String(displayText.suffix(maxChars))
+        } else {
+            transcriptTextField?.stringValue = displayText
+        }
+
+        positionTranscriptWindow()
+        transcriptWindow?.orderFrontRegardless()
+    }
+
+    private func createTranscriptWindow() {
+        let width: CGFloat = 400
+        let height: CGFloat = 60
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .floating
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = true
+        window.ignoresMouseEvents = true
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+
+        // 角丸黒背景のコンテナ
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.75).cgColor
+        container.layer?.cornerRadius = 10
+
+        // テキストフィールド
+        let textField = NSTextField(frame: NSRect(x: 12, y: 8, width: width - 24, height: height - 16))
+        textField.isEditable = false
+        textField.isBordered = false
+        textField.backgroundColor = .clear
+        textField.textColor = .white
+        textField.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        textField.alignment = .center
+        textField.maximumNumberOfLines = 3
+        textField.lineBreakMode = .byTruncatingHead
+        textField.cell?.wraps = true
+
+        container.addSubview(textField)
+        window.contentView = container
+
+        transcriptWindow = window
+        transcriptTextField = textField
+    }
+
+    private func positionTranscriptWindow() {
+        guard let window = transcriptWindow else { return }
+
+        let overlayFrame = self.frame
+        let transcriptSize = window.frame.size
+        let y = overlayFrame.maxY + 8
+
+        let position = SettingsManager.shared.settings.overlayPosition
+        let x: CGFloat
+        switch position {
+        case .bottomRight:
+            // 右下: 吹き出しの右端をオーバーレイの右端に揃える
+            x = overlayFrame.maxX - transcriptSize.width
+        case .bottomLeft:
+            // 左下: 吹き出しの左端をオーバーレイの左端に揃える
+            x = overlayFrame.minX
+        case .bottomCenter:
+            // 中央: オーバーレイの中央に揃える
+            x = overlayFrame.midX - transcriptSize.width / 2
+        }
+
+        window.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    private func hideTranscriptWindow() {
+        transcriptWindow?.orderOut(nil)
+        transcriptTextField?.stringValue = ""
+    }
+
+    // MARK: - Hover Dashboard
+
+    func handleMouseEntered() {
+        guard isIdle else { return }
+
+        // 非表示タイマーをキャンセル
+        dashboardHideTimer?.invalidate()
+        dashboardHideTimer = nil
+
+        // 既に表示中ならそのまま
+        if dashboardWindow?.isVisible == true { return }
+
+        // 0.3秒後に表示（ディバウンス）
+        dashboardShowTimer?.invalidate()
+        dashboardShowTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: false) { [weak self] _ in
+            self?.showDashboard()
+        }
+    }
+
+    func handleMouseExited() {
+        // 表示タイマーをキャンセル
+        dashboardShowTimer?.invalidate()
+        dashboardShowTimer = nil
+
+        // 0.2秒後に非表示（ディバウンス）
+        dashboardHideTimer?.invalidate()
+        dashboardHideTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            self?.hideDashboard()
+        }
+    }
+
+    private func showDashboard() {
+        if dashboardWindow == nil {
+            createDashboardWindow()
+        }
+        updateDashboardContent()
+        positionDashboardWindow()
+        dashboardWindow?.orderFrontRegardless()
+    }
+
+    private func hideDashboard() {
+        dashboardWindow?.orderOut(nil)
+    }
+
+    private func hideDashboardImmediately() {
+        dashboardShowTimer?.invalidate()
+        dashboardShowTimer = nil
+        dashboardHideTimer?.invalidate()
+        dashboardHideTimer = nil
+        hideDashboard()
+    }
+
+    private func createDashboardWindow() {
+        let width: CGFloat = 220
+        let height: CGFloat = 96
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .floating
+        window.backgroundColor = .clear
+        window.isOpaque = false
+        window.hasShadow = true
+        window.ignoresMouseEvents = true
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.75).cgColor
+        container.layer?.cornerRadius = 10
+
+        var yOffset: CGFloat = height - 8
+
+        // --- ステータス行 ---
+        yOffset -= 16
+        let dotSize: CGFloat = 8
+        let dot = NSView(frame: NSRect(x: 12, y: yOffset + 4, width: dotSize, height: dotSize))
+        dot.wantsLayer = true
+        dot.layer?.cornerRadius = dotSize / 2
+        container.addSubview(dot)
+        statusDotView = dot
+
+        let sTF = NSTextField(frame: NSRect(x: 26, y: yOffset, width: width - 38, height: 16))
+        sTF.isEditable = false
+        sTF.isBordered = false
+        sTF.backgroundColor = .clear
+        sTF.textColor = .white
+        sTF.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        sTF.lineBreakMode = .byTruncatingTail
+        container.addSubview(sTF)
+        statusLabel = sTF
+
+        // --- セパレータ 1 ---
+        yOffset -= 9
+        let sep1 = NSView(frame: NSRect(x: 12, y: yOffset, width: width - 24, height: 1))
+        sep1.wantsLayer = true
+        sep1.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        container.addSubview(sep1)
+
+        // --- 文字起こしプレビュー ---
+        yOffset -= 18
+        let tTF = NSTextField(frame: NSRect(x: 12, y: yOffset, width: width - 24, height: 16))
+        tTF.isEditable = false
+        tTF.isBordered = false
+        tTF.backgroundColor = .clear
+        tTF.textColor = .white
+        tTF.font = NSFont.systemFont(ofSize: 11)
+        tTF.lineBreakMode = .byTruncatingTail
+        container.addSubview(tTF)
+        transcriptionPreviewLabel = tTF
+
+        yOffset -= 14
+        let tsTF = NSTextField(frame: NSRect(x: 12, y: yOffset, width: width - 24, height: 12))
+        tsTF.isEditable = false
+        tsTF.isBordered = false
+        tsTF.backgroundColor = .clear
+        tsTF.textColor = NSColor.white.withAlphaComponent(0.5)
+        tsTF.font = NSFont.systemFont(ofSize: 9)
+        container.addSubview(tsTF)
+        timestampLabel = tsTF
+
+        // --- セパレータ 2 ---
+        yOffset -= 7
+        let sep2 = NSView(frame: NSRect(x: 12, y: yOffset, width: width - 24, height: 1))
+        sep2.wantsLayer = true
+        sep2.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.2).cgColor
+        container.addSubview(sep2)
+
+        // --- 今日の使用量 ---
+        yOffset -= 16
+        let uTF = NSTextField(frame: NSRect(x: 12, y: yOffset, width: width - 24, height: 14))
+        uTF.isEditable = false
+        uTF.isBordered = false
+        uTF.backgroundColor = .clear
+        uTF.textColor = NSColor.white.withAlphaComponent(0.8)
+        uTF.font = NSFont.systemFont(ofSize: 10)
+        container.addSubview(uTF)
+        usageLabel = uTF
+
+        window.contentView = container
+        dashboardWindow = window
+    }
+
+    private func updateDashboardContent() {
+        let settings = SettingsManager.shared.settings
+
+        // ステータス
+        if settings.useLocalTranscription {
+            let status = VoxtralServerManager.shared.status
+            statusLabel?.stringValue = L10n.Overlay.localPrefix + status.displayText
+
+            let dotColor: NSColor
+            switch status {
+            case .ready:        dotColor = .systemGreen
+            case .starting:     dotColor = .systemYellow
+            case .loadingModel: dotColor = .systemYellow
+            case .stopped:      dotColor = .systemGray
+            case .error:        dotColor = .systemRed
+            }
+            statusDotView?.layer?.backgroundColor = dotColor.cgColor
+        } else {
+            statusLabel?.stringValue = L10n.Overlay.cloudMode
+            statusDotView?.layer?.backgroundColor = NSColor.systemBlue.cgColor
+        }
+
+        // 直近の文字起こし
+        if let lastItem = TranscriptionHistoryManager.shared.items.first {
+            transcriptionPreviewLabel?.stringValue = lastItem.textPreview
+            timestampLabel?.stringValue = lastItem.formattedTimestamp
+        } else {
+            transcriptionPreviewLabel?.stringValue = L10n.Overlay.noTranscriptions
+            timestampLabel?.stringValue = ""
+        }
+
+        // 今日の使用量
+        let usage = SettingsManager.shared.getTodayUsage()
+        usageLabel?.stringValue = L10n.format(L10n.Overlay.todayTokens, usage.tokens.formatted())
+    }
+
+    private func positionDashboardWindow() {
+        guard let window = dashboardWindow else { return }
+
+        let overlayFrame = self.frame
+        let dashboardSize = window.frame.size
+        let y = overlayFrame.maxY + 8
+
+        let position = SettingsManager.shared.settings.overlayPosition
+        let x: CGFloat
+        switch position {
+        case .bottomRight:
+            x = overlayFrame.maxX - dashboardSize.width
+        case .bottomLeft:
+            x = overlayFrame.minX
+        case .bottomCenter:
+            x = overlayFrame.midX - dashboardSize.width / 2
+        }
+
+        window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
     /// 完全に非表示にする（アプリ終了時など）
     func hideCompletely() {
         updateTimer?.invalidate()
         updateTimer = nil
+        stopScreenTracking()
+        hideTranscriptWindow()
+        hideDashboardImmediately()
         self.orderOut(nil)
     }
 
     func showProcessing() {
         isIdle = false
         updateTimer?.invalidate()
+
+        // ダッシュボードを即座に非表示
+        hideDashboardImmediately()
 
         // アイドルUI（ミニキャラクター）に切り替え、アニメーション開始
         setupIdleUI()
@@ -280,11 +667,31 @@ class IdleCatView: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        setupTrackingArea()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
+        setupTrackingArea()
+    }
+
+    private func setupTrackingArea() {
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        (window as? OverlayWindow)?.handleMouseEntered()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        (window as? OverlayWindow)?.handleMouseExited()
     }
 
     func startBouncing() {
@@ -741,5 +1148,6 @@ extension Notification.Name {
     static let stopRecordingFromMenu = Notification.Name("stopRecordingFromMenu")
     static let recordingStartedFromOverlay = Notification.Name("recordingStartedFromOverlay")
     static let recordingStoppedFromOverlay = Notification.Name("recordingStoppedFromOverlay")
+    static let localTranscriptionToggled = Notification.Name("localTranscriptionToggled")
 }
 

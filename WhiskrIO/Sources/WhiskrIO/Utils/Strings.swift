@@ -161,6 +161,25 @@ enum L10n {
     enum Overlay {
         static let listening = LocalizedString("overlay.listening")
         static let processing = LocalizedString("overlay.processing")
+        static let cloudMode = LocalizedString("overlay.cloud_mode")
+        static let localPrefix = LocalizedString("overlay.local_prefix")
+        static let noTranscriptions = LocalizedString("overlay.no_transcriptions")
+        static let todayTokens = LocalizedString("overlay.today_tokens")
+    }
+
+    // MARK: - Voxtral (Local Transcription)
+    enum Voxtral {
+        static let localTranscription = LocalizedString("voxtral.local_transcription")
+        static let useLocalModel = LocalizedString("voxtral.use_local_model")
+        static let serverSettings = LocalizedString("voxtral.server_settings")
+        static let host = LocalizedString("voxtral.host")
+        static let port = LocalizedString("voxtral.port")
+        static let testConnection = LocalizedString("voxtral.test_connection")
+        static let testing = LocalizedString("voxtral.testing")
+        static let connectionSuccess = LocalizedString("voxtral.connection_success")
+        static let connectionFailed = LocalizedString("voxtral.connection_failed")
+        static let geminiRequired = LocalizedString("voxtral.gemini_required")
+        static let serverNotRunning = LocalizedString("voxtral.server_not_running")
     }
     
     // MARK: - Dictionary
@@ -340,6 +359,10 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         // Overlay
         "overlay.listening": "Listening...",
         "overlay.processing": "Processing...",
+        "overlay.cloud_mode": "Cloud (Gemini)",
+        "overlay.local_prefix": "Local: ",
+        "overlay.no_transcriptions": "No transcriptions yet",
+        "overlay.today_tokens": "Today: %@ tokens",
         
         // Dictionary
         "dictionary.title": "Custom Dictionary",
@@ -355,7 +378,20 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "snippets.expansion": "Expansion",
         "snippets.add_snippet": "Add Snippet",
         "snippets.no_snippets": "No snippets",
-        "snippets.description": "Define shortcuts that expand to full text"
+        "snippets.description": "Define shortcuts that expand to full text",
+
+        // Voxtral
+        "voxtral.local_transcription": "Local Transcription",
+        "voxtral.use_local_model": "Use local model for transcription",
+        "voxtral.server_settings": "Server Settings",
+        "voxtral.host": "Host",
+        "voxtral.port": "Port",
+        "voxtral.test_connection": "Test Connection",
+        "voxtral.testing": "Testing...",
+        "voxtral.connection_success": "Connection successful",
+        "voxtral.connection_failed": "Connection failed",
+        "voxtral.gemini_required": "Gemini API key is still required for text generation (commands, rules, selection edit).",
+        "voxtral.server_not_running": "Voxtral server is not running. Start voxmlx-serve first."
     ],
     
     .japanese: [
@@ -477,6 +513,10 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         // Overlay
         "overlay.listening": "録音中...",
         "overlay.processing": "処理中...",
+        "overlay.cloud_mode": "クラウド (Gemini)",
+        "overlay.local_prefix": "ローカル: ",
+        "overlay.no_transcriptions": "文字起こし履歴なし",
+        "overlay.today_tokens": "今日: %@ tokens",
         
         // Dictionary
         "dictionary.title": "カスタム辞書",
@@ -492,7 +532,20 @@ private let localizedStrings: [AppLanguage: [String: String]] = [
         "snippets.expansion": "展開テキスト",
         "snippets.add_snippet": "スニペットを追加",
         "snippets.no_snippets": "スニペットがありません",
-        "snippets.description": "ショートカットから全文に展開する定義"
+        "snippets.description": "ショートカットから全文に展開する定義",
+
+        // Voxtral
+        "voxtral.local_transcription": "ローカル文字起こし",
+        "voxtral.use_local_model": "ローカルモデルで文字起こし",
+        "voxtral.server_settings": "サーバー設定",
+        "voxtral.host": "ホスト",
+        "voxtral.port": "ポート",
+        "voxtral.test_connection": "接続テスト",
+        "voxtral.testing": "テスト中...",
+        "voxtral.connection_success": "接続成功",
+        "voxtral.connection_failed": "接続失敗",
+        "voxtral.gemini_required": "テキスト生成（コマンド、ルール、選択編集）にはGemini APIキーが必要です。",
+        "voxtral.server_not_running": "Voxtralサーバーが起動していません。voxmlx-serveを起動してください。"
     ]
 ]
 
