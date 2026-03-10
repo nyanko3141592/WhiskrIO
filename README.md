@@ -19,6 +19,13 @@ Gemini API を使用した macOS 用の音声入力アプリ。猫のひげ（Wh
 - 高精度な音声認識
 - 日本語・英語対応（100+言語）
 
+### 🏠 ローカル文字起こし（Voxtral）
+- **Voxtral Mini 4B** によるオフライン音声認識
+- WebSocketベースのリアルタイムストリーミング処理
+- Apple Silicon (MLX) で高速推論
+- インターネット接続不要（プライバシー重視）
+- 設定画面からワンクリックで切り替え可能
+
 ### ✨ AI自動編集
 - **フィラーワード除去**: 「えーと」「あの」「まあ」などを自動削除
 - **自動句読点**: 自然な文中に適切な句読点を追加
@@ -73,8 +80,9 @@ Gemini API を使用した macOS 用の音声入力アプリ。猫のひげ（Wh
 
 - macOS 13.0 以降
 - Apple Silicon または Intel Mac
-- インターネット接続（Gemini API使用のため）
+- インターネット接続（Gemini API使用時）
 - マイク
+- Python 3.10+（ローカル文字起こし使用時、uvx が必要）
 
 ## インストール
 
@@ -117,6 +125,15 @@ cp -r WhiskrIO.app /Applications/
 | Gemini 2.5 Flash-Lite | 最速・最安 | $0.10/M tokens |
 | Gemini 2.5 Flash | バランス型 | $0.30/M tokens |
 | Gemini 2.5 Pro | 最高精度 | $1.25/M tokens |
+
+### ローカル文字起こし（Voxtral）の設定
+
+1. 設定 → 「API」タブ
+2. 「ローカル文字起こし」セクションのトグルを有効化
+3. 「Start Server」ボタンでvoxmlxサーバーを起動（初回はモデルダウンロードあり）
+4. サーバー状態が「Ready」になれば使用可能
+
+**注意**: Gemini APIキーはローカルモード使用時でも必要です（テキスト編集・コマンドモード・ルール処理に使用）。
 
 ### ホットキーの変更
 
@@ -204,7 +221,9 @@ WhiskrIO/
 │   │   └── TranscriptionHistory.swift # 文字起こし履歴
 │   ├── Services/
 │   │   ├── GeminiService.swift     # Gemini API連携
-│   │   ├── RecordingManager.swift  # 音声録音
+│   │   ├── VoxtralService.swift    # Voxtral WebSocket通信
+│   │   ├── VoxtralServerManager.swift # voxmlxサーバー管理
+│   │   ├── RecordingManager.swift  # 音声録音（バッチ/ストリーミング）
 │   │   ├── HotkeyManager.swift     # グローバルホットキー
 │   │   └── RuleEngine.swift        # ルール処理エンジン
 │   ├── Views/
@@ -227,6 +246,7 @@ WhiskrIO/
 |------|------------|----------|
 | ユニバーサル入力 | ✅ | ✅ |
 | AI文字起こし | ✅ | ✅ (Gemini 2.5) |
+| **ローカル文字起こし** | ❌ | ✅ Voxtral Mini 4B |
 | **Push to Talk** | ✅ | ✅ 複合キー対応 |
 | **カスタムプロンプト** | ❌ | ✅ |
 | **コマンドモード** | ❌ | ✅ zsh生成 |
@@ -267,3 +287,4 @@ MIT License
 - [Google Gemini API](https://ai.google.dev/gemini-api)
 - [WhisprFlow](https://wisprflow.ai/) - インスピレーションの源
 - [YAMS](https://github.com/jpsim/YAMS) - YAMLパーサー
+- [voxmlx](https://github.com/T0mSIlver/voxmlx) - Voxtral MLXサーバー

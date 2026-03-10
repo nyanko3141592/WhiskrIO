@@ -22,8 +22,10 @@ WhiskrIO/
 │   │   └── Snippet.swift
 │   ├── Services/
 │   │   ├── GeminiService.swift     # Gemini API連携
-│   │   ├── RecordingManager.swift  # 音声録音（AVAudioRecorder）
-│   │   ├── HotkeyManager.swift     # グローバルホットキー（Carbon）
+│   │   ├── VoxtralService.swift    # Voxtral WebSocket通信（ストリーミング文字起こし）
+│   │   ├── VoxtralServerManager.swift # voxmlxサーバーライフサイクル管理
+│   │   ├── RecordingManager.swift  # 音声録音（バッチ: AVAudioRecorder / ストリーミング: AVAudioEngine）
+│   │   ├── HotkeyManager.swift     # グローバルホットキー（CGEventTap）
 │   │   ├── RuleEngine.swift        # ルール処理エンジン
 │   │   └── TextInjector.swift      # テキスト自動入力
 │   ├── Views/
@@ -74,9 +76,30 @@ WhiskrIO/
 
 ### 5. RecordingManager
 
-- `AVAudioRecorder` で音声録音
-- 44.1kHz, AAC形式
+- **バッチモード**（Gemini API使用時）: `AVAudioRecorder` で44.1kHz, AAC形式
+- **ストリーミングモード**（Voxtral使用時）: `AVAudioEngine` で16kHz, PCM16, mono
+  - 100msごとにオーディオチャンクをVoxtralServiceへ送信
+  - 0.9秒ごとにコミット（中間テキスト取得）
 - 録音レベルのモニタリング
+
+### 6. VoxtralService
+
+- WebSocket通信（`ws://host:port/v1/realtime`）
+- リアルタイムストリーミング文字起こし
+- メッセージプロトコル:
+  - `input_audio_buffer.append` - PCM16オーディオチャンク送信（base64）
+  - `input_audio_buffer.commit` - バッファコミット
+  - `response.audio_transcript.delta` - 中間テキスト受信
+  - `response.audio_transcript.done` - セグメント完了
+- 自動リトライ: 最大10回（0.5秒刻みで間隔延長）
+
+### 7. VoxtralServerManager
+
+- voxmlxサーバーの起動/停止/状態監視
+- `uvx` コマンド経由でサーバー起動
+- モデル: `T0mSIlver/Voxtral-Mini-4B-Realtime-2602-MLX-4bit`
+- サーバー状態: stopped → starting → loadingModel → ready / error
+- ポート競合チェック・クリーンアップ
 
 ## セキュリティ
 
