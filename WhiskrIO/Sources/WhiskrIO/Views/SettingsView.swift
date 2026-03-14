@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import ApplicationServices
+import ServiceManagement
 
 struct SettingsView: View {
     @StateObject private var settingsManager = SettingsManager.shared
@@ -553,6 +554,39 @@ struct SettingsView: View {
     private var advancedSettings: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                // 一般
+                GroupBox(label: Label("一般", systemImage: "gearshape")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: Binding(
+                            get: { settingsManager.settings.launchAtLogin },
+                            set: { newValue in
+                                settingsManager.settings.launchAtLogin = newValue
+                                settingsManager.saveSettings()
+                                do {
+                                    if newValue {
+                                        try SMAppService.mainApp.register()
+                                    } else {
+                                        try SMAppService.mainApp.unregister()
+                                    }
+                                } catch {
+                                    print("[ERROR] Failed to \(newValue ? "register" : "unregister") login item: \(error)")
+                                    // 失敗した場合は設定を元に戻す
+                                    settingsManager.settings.launchAtLogin = !newValue
+                                    settingsManager.saveSettings()
+                                }
+                            }
+                        )) {
+                            VStack(alignment: .leading) {
+                                Text("ログイン時に起動")
+                                Text("Macの起動時にWhiskrIOを自動的に開始します")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+
                 // 権限
                 GroupBox(label: Label("権限", systemImage: "lock.shield")) {
                     VStack(alignment: .leading, spacing: 12) {

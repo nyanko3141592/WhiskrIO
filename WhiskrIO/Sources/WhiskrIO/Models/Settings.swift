@@ -276,6 +276,7 @@ struct AppSettings: Codable, Equatable {
     var voxtralPort: Int  // Voxtralサーバーのポート
     var useAppleIntelligenceForEdit: Bool  // 選択編集にApple Intelligenceを使う
     var pushToTalkShortcut: PushToTalkShortcut  // 任意キー組み合わせ対応ショートカット
+    var launchAtLogin: Bool  // ログイン時に自動起動
 
     static let `default` = AppSettings(
         hotkeyModifier: Int(NSEvent.ModifierFlags.command.union(.shift).rawValue),
@@ -302,7 +303,8 @@ struct AppSettings: Codable, Equatable {
         voxtralHost: "127.0.0.1",  // デフォルト: ローカルホスト
         voxtralPort: 8000,  // デフォルト: voxmlxのデフォルトポート
         useAppleIntelligenceForEdit: true,  // デフォルト: ON（Apple Intelligenceで選択編集）
-        pushToTalkShortcut: .default  // デフォルト: ⌥ + ⌘
+        pushToTalkShortcut: .default,  // デフォルト: ⌥ + ⌘
+        launchAtLogin: false  // デフォルト: OFF
     )
 }
 
